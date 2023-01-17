@@ -8,6 +8,8 @@ Read ABB Robot backup. Generate an execution chart parsed into yEd format .graph
 
 Copy the controller backup into the same folder as the script. Run the script.
 
+Open .graphml files in yEd. Arrange chart by selecting Layer->Hierarchical or any other suitable style.
+
 # Prerequisites
 
 https://strawberryperl.com/
@@ -24,6 +26,9 @@ Example:
 ! Comment for this script to interpret:
 ! Rapid2Graph [Procedure1000,Procedure2000,Procedure3000,Procedure4000]
 ```
+
+Check logfiles for found procedures (TaskProcs.log) and procedurecalls (TaskProcs.log).
+
 
 # Shortcomings
 
