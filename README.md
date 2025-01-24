@@ -2,17 +2,35 @@
 
 # Abstract
 
-Read ABB Robot backup. Generate an execution chart parsed into yEd format .graphml .
+Read ABB Robot backup. Generate an execution chart parsed into yEd format .graphml . Procedures and functions are grouped into module-groups. Module-groups are grouped into Task-groups. PROC/FUNC/TRAP methods are colour coded.
+
+Advantages:
+
+* Educational. Sharing knowledge with new engineers.
+* Testing. Visually highlighting for all parts of the program which calls any part other part.
+* Cleanup. Minimalizes the codebase by highlighting unused code.
+
+Example output:  
+![2025-01-24-2](https://github.com/user-attachments/assets/bcfcdf64-6b5c-4581-9c90-f8c5c4f124eb)
+
+yEd software specific advantages:
+
+* Automatic layout
+* Navigation by main graph or Task/Module/Method list.
+
 
 # Usage
 
 Copy the controller backup into the same folder as the script. Run the script.
 
-Open .graphml files in yEd. Arrange chart by selecting Layer->Hierarchical or any other suitable style.
+Open .graphml files in yEd. Arrange chart by selecting Layer->Hierarchical or any other suitable layout style.
 
 # Prerequisites
 
-https://strawberryperl.com/
+[strawberryperl.com](https://strawberryperl.com/)
+
+[www.yworks.com/products/yed](https://www.yworks.com/products/yed)
+
 
 # More info
 
@@ -28,27 +46,3 @@ Example:
 ```
 
 Check logfiles for found procedures (TaskProcs.log) and procedurecalls (TaskProcs.log).
-
-
-# Shortcomings
-
-Consider this script as work in progress and quite a big mess. However as a proof of concept it works.
-
-The biggest issue is CompactIf instructions. Egde cases will probably not be interpreted correctly. Currently CompactIf will be interpreted as follows, which works well in most cases.
-
-```
-! Line starting with IF.
-IF CodeLine =~ /^IF/
-
-  ! Line does not end with THEN.
-  IF CodeLine !~ /THEN$/
-  
-    ! Remove spaces before and after operators.
-    CodeLine =~ s/\s*([\,\+\-\=\:\\\/\*])\s*/$1/g;
-    
-      ! Backtrack from string-end, find space char outside parenthesis and outside string brackets.
-      ProcCall = SubStr(CodeLine,RevSearchSpace(CodeLine));
-      
-        ! This MAY be incorrect in edge cases, so we backtrack further to see if we find /\s[\w\d]+\s/
-        ProcCall = SubStr(CodeLine,RevSearchWord(CodeLine));
-```
