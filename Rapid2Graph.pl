@@ -34,7 +34,15 @@ print 'Most recent backup folder found: ' . $BACKUP_FOLDER . "\n\n";
 
 
 
-# @TASK_LIST will contain indexes of 'TASKn;<TaskName>'
+# @TASK_LIST:
+#   Elements: '<TASKn>;<TaskName>'
+#     <TASKn>: String 'TASK' followed by tasknr digit(s)
+#     <TaskName>: Name of the task as found in the backinfo.txt file.
+#   Data is found in backinfo.txt . 
+#   Old syntax
+#     >>TASK0: (MAIN)
+#   New syntax
+#     >>TASK0: (MAIN,<name>)
 our(@TASK_LIST) = BackupFindTaskList($BACKUP_FOLDER);
 print 'Found tasks:' . "\n";
 foreach my $i (0..$#TASK_LIST) {
