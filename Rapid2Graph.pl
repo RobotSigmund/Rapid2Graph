@@ -52,7 +52,12 @@ print "\n";
 
 
 
-# Look for entry points if changed from 'Main'
+# Look for entry points. These are located the system parameters file /SYSPAR/SYS.cfg .
+# @TASK_LIST:
+#   Elements: '<TASKn>;<TaskName>;<Entry point>'
+#     <TASKn>: String 'TASK' followed by tasknr digit(s). Example 'TASK1'
+#     <TaskName>: Name of the task as found in the backinfo.txt file. Example 'T_ROB1'
+#     <Entry point>: Procedure name as found in /SYSPAR/SYS.cfg . Example 'Main'
 BackupFindTaskEntryPoints($BACKUP_FOLDER);
 print 'Found entry points:' . "\n";
 foreach my $i (0..$#TASK_LIST) {
@@ -62,8 +67,12 @@ print "\n";
 
 
 
-# Look for EVENT routines in system parameters
-# @EVENT_ROUTINE_LIST will contain entries like <EventRoutineName;Action;Task>
+# Look for EVENT routines in system parameters file /SYSPAR/SYS.cfg .
+# @EVENT_ROUTINE_LIST
+#   Elements: '<Event routine name>;<Action>;<Task>'
+#     <Event routine name>: Procedure name. Example 'Event_Restart'
+#     <Action>: Event action. Example 'RESTART'
+#     <Task>: Taskname for the event routine. Example 'T_ROB1'
 our(@EVENT_ROUTINE_LIST) = ();
 BackupFindEventRoutines($BACKUP_FOLDER);
 print 'Found event routines:' . "\n";
