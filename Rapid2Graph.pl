@@ -1,1049 +1,1236 @@
 #!c:/perl/bin/perl
 
-#////////////////////////////////////////////////////////////////////////////////
-
-# Rapid2Graph
-# Rev. 2022-01-28
-# SS/RN
-
-# Tidsforbruk
-# 2022-02-29 7.5t
-# 2022-02-30 7.5t
-
-#////////////////////////////////////////////////////////////////////////////////
+use strict;
+use warnings;
 
 use Time::Local;
+use Win32;
 
-# Define cmdline nobuffer
-$| = 1;
-$DEBUG = 1;
 
-# Define GLOBAL variables
-$BAK_FOLDER = '';
+our($APP_NAME) = 'Rapid2Graph_V2';
+our($APP_REV) = 'rev2023-09-22';
+our($APP_AUTH) = 'Sigmund Straumland';
+our($APP_USER) = Win32::LoginName() || "Unknown";
+our($APP_USER_MACHINE) = Win32::NodeName() || "Unknown";
+our($APP_WEB) = 'http://www.straumland.com';
 
-$BAK_INFO = ([]);
-$TASK_INFO = ([]);
-$TASK_MODS = ([]);
-$TASK_ROUTINES = ([]);
-$TASK_CALLS = ([]);
+our($CFG_HIDE_IGNORED_NODES) = 1;
 
-# Open file for writing.
-#   Will write all procedures found in backup into this file
-#   Format: <i>, <ProcedureName>, <RoutineType>, <RoutineLocal>, <Module>, <TASKn>
-open(PROCS,'>procs.log');
 
-# Find most recent backup FOLDER
-find_most_recent_bak();
+print $APP_NAME.' '.$APP_REV."\n";
+print 'By '.$APP_AUTH.' - '.$APP_WEB."\n";
+print "---\n\n";
 
-# Read information from BACKINFO/backinfo.txt
-#   We want RobotID, Robotware and all TASK ids and modulenames.
-read_bakinfo();
 
-# Read all RAPID modules from each TASK. Find all PROC/TRAP/FUNC and their location.
-read_taskinfo();
 
-# Store all found procedures
-#   Format: <TASKn>; <Module>; <ProcedureName>; <RoutineType>; <RoutineLocal>;
-open(FILE,'>TaskProcs.log');
-foreach $i (0..$#TASK_ROUTINES) {
-	foreach $j (0..$#{$TASK_ROUTINES[$i]}) {
-		#print $TASK_ROUTINES[$i][$j].';';
-		print FILE $TASK_ROUTINES[$i][$j].';';
-	}
-	print FILE "\n";
-	#print "\n";
+# Find latest backup according to backinfo.txt
+our($BACKUP_TIME) = time();
+our($BACKUP_ID) = '';
+our($BACKUP_RW) = '';
+print 'Found backups:'."\n";
+my($BACKUP_FOLDER) = BackupFindMostRecent('.');
+print 'Most recent backup folder found:'.$BACKUP_FOLDER."\n\n";
+
+
+
+# @TASK_LIST will contain indexes of 'TASKn;<TaskName>'
+our(@TASK_LIST) = BackupFindTaskList($BACKUP_FOLDER);
+print 'Found tasks:'."\n";
+my($i);
+foreach $i (0..$#TASK_LIST) {
+	print $TASK_LIST[$i]."\n";
 }
-close(FILE);
+print "\n";
 
-# Read every line of every module, try to find procedure/function -calls and map where they originate and to where they call
-read_taskinfo_calls();
-#foreach $i (0..$#TASK_ROUTINES) {
-#	foreach $j (0..$#{$TASK_ROUTINES[$i]}) {
-#		print $TASK_ROUTINES[$i][$j].';';
-#	}
-#	print "\n";
-#}
 
-# There may be multiples, no need to generate junk data
-remove_duplicates();
 
-# Store logfile containing all calls.
-#   Format: <TASKn>; <Module>; <Procedure>; <ProcedureToCall>;
-open(FILE,'>TaskCalls.log');
-foreach $i (0..$#TASK_CALLS) {
-	foreach $j (0..$#{$TASK_CALLS[$i]}) {
-		#print $TASK_CALLS[$i][$j].';';
-		print FILE $TASK_CALLS[$i][$j].';';
-	}
-	print FILE "\n";
-	#print "\n";
+# Look for entry points if changed from 'Main'
+BackupFindTaskEntryPoints($BACKUP_FOLDER);
+print 'Found entry points:'."\n";
+foreach $i (0..$#TASK_LIST) {
+	print $TASK_LIST[$i]."\n";
 }
-close(FILE);
+print "\n";
 
-# Define global data related to out-files
-$TGF_NODES_i = 1;
-$TGF_NODES = '';
-$TGF_LINKS = '';
-$GRAPHML_NODES = '';
-$GRAPHML_LINKS = '';
-$GRAPHML2_NODES = '';
-%GRAPHML2_NODEREF = ();
-$GRAPHML2_LINKS = '';
-$GRAPHML_EDGE_i = 1;
 
-# Generate out-files
-generate_tgf();
 
-close(PROCS);
+# Look for EVENT routines in system parameters
+# @EVENT_ROUTINE_LIST will contain entries like <EventRoutineName;Action;Task>
+our(@EVENT_ROUTINE_LIST) = ();
+BackupFindEventRoutines($BACKUP_FOLDER);
+print 'Found event routines:'."\n";
+foreach (@EVENT_ROUTINE_LIST) {
+	print $_."\n";
+}
+print "\n";
 
-print <<EOM;
 
-//////////////////////////////////////////////////////////////////////
 
-Note!
+our(%FILEDATA);
+my(@PROG_MODULES) = BackupFindProgModules($BACKUP_FOLDER);
+print 'Found modules:'."\n";
+foreach $i (0..$#PROG_MODULES) {
+	print $PROG_MODULES[$i]."\n";
+}
+print "\n";
 
-If any late binding calls are used, these can not be determined without executing the Rapidprogram. However you can
-add a comment on the following line to indicate any valid calls.
 
-Ex.
 
-CallByVar "CMD",giPlcCommand;
-! Rapid2Graph [CMD_1000,CMD_1001,CMD_3000,CMD_4000,CMD_4100,CMD_9900]
+our(@DECL_ROUTINES) = BackupFindDeclRoutines($BACKUP_FOLDER,@PROG_MODULES);
+# %VERIFIED_ROUTINES does nothing, but will tag all routines containing /^!\s*Verified/. These will be outlined in the final graph as OK.
+our(%VERIFIED_ROUTINES) = ();
+print 'Found procedures:'."\n";
+foreach $i (0..$#DECL_ROUTINES) {
+	print $i.':'.$DECL_ROUTINES[$i]."\n";
+}
+print "\n";
 
-//////////////////////////////////////////////////////////////////////
 
-Rapid2Chart finnished successfully!
-www.straumland.com
 
-EOM
+our(@CHK_ROUTINES);
+our(@CONNECTIONS);
+our(@WARNING_LATEBINDING);
+our(%PROCESSED_ROUTINES);
+our(%UNUSED_ROUTINES);
+print 'Reading routines...'."\n";
+BackupFindRoutineCalls($BACKUP_FOLDER);
 
-sleep(3);
 
-# EXIT/FINNISHED
+
+print "\n".'Remove duplicate connections'."\n";
+RemoveDuplicateEdges();
+
+
+
+print "\n".'Generating GraphML file'."\n";
+generate_graphml($BACKUP_FOLDER);
+
+
+
+if (scalar %VERIFIED_ROUTINES) {
+	print "\n".'Generating "Verified"-list'."\n\n";
+	open(FILE,'>'.$BACKUP_FOLDER.'_verified.log');
+	foreach (@DECL_ROUTINES) {
+		my(@decl_info) = split(/;/,$_);
+		if ($VERIFIED_ROUTINES{$decl_info[0].'/'.$decl_info[1].'/'.$decl_info[2]}) {
+			print FILE '1;';
+		} else {
+			print FILE '0;';
+		}
+		print FILE $decl_info[0].';'.$decl_info[1].';'.$decl_info[2].';';
+		print FILE "\n";
+	}
+	close(FILE);
+}
+
+
+
+print 'Procedures containing possible unadressed late-bind calls:'."\n";
+foreach $i (0..$#WARNING_LATEBINDING) {
+	print '  '.$WARNING_LATEBINDING[$i]."\n";
+}
+if ($#WARNING_LATEBINDING < 0) {
+	print '<None found>'."\n";
+} else {
+	print "\n".'To include late-bind calls into exec chart, use'."\n";
+	print 'the following comment anywhere in the late-bind routine:'."\n";
+	print '  ! Rapid2Graph [Routine1,Routine2,Routine3,...]'."\n";
+	print 'or you can specify LOCAL declared routine out of scope like this:'."\n";
+	print '  ! Rapid2Graph [SomeModule.mod:Routine1,SomeOtherModule.mod:Routine2,Routine3,...]'."\n";
+}
+
+
+
+print "\n".$APP_NAME.' '.$APP_REV."\n";
+print 'By '.$APP_AUTH.' - '.$APP_WEB."\n";
+
+
+
+print "\n".'Done'."\n";
+<STDIN>;
+
+
+
 exit;
 
-# ////////// ////////// ////////// ////////// ////////// ////////// ////////// //////////
 
-sub generate_tgf {
-	my($i,$parent_from);
 
-	print '-Generating TGF file'."\n";
-	
-	$TGF_NODES_i = 1;
-
-	foreach $i (0..$#TASK_INFO) {
-		
-		$TGF_NODES .= $TGF_NODES_i.' '.$TASK_INFO[$i][0].'('.$TASK_INFO[$i][1].')/Main'."\n";
-		$GRAPHML_NODES = NodeGraphmlMain($TGF_NODES_i,$TASK_INFO[$i][0].'('.$TASK_INFO[$i][1].')/Main').$GRAPHML_NODES;
-		$GRAPHML2_NODES = NodeGraphmlMain($TGF_NODES_i,$TASK_INFO[$i][0].'('.$TASK_INFO[$i][1].')/Main').$GRAPHML2_NODES;
-		
-		$parent_from = $TGF_NODES_i;
-		$TGF_NODES_i++;
-		#                  $parent,     $task,            $module,$routine
-		generate_tgf_calls($parent_from,$TASK_INFO[$i][0],'',     'Main',0,'');
+sub RemoveDuplicateEdges {
+	print '  Size:'.$#CONNECTIONS."\n";
+	my($i) = 0;
+	my($j) = 0;
+	while ($i<$#CONNECTIONS) {
+		$j = $i + 1;
+		while ($j<=$#CONNECTIONS) {
+			if ($CONNECTIONS[$i] eq $CONNECTIONS[$j]) {
+				splice(@CONNECTIONS,$j,1);
+			} else {
+				$j++;
+			}
+		}
+		$i++;
 	}
-	
-	open(TGF, '>'.$BAK_INFO[0].'.tgf');
-	print TGF $TGF_NODES;
-	print TGF '#'."\n";
-	print TGF $TGF_LINKS;
-	close(TGF);
-
-	open(GRAPHML, '>'.$BAK_INFO[0].'.graphml');
-	open(GRAPHML2, '>'.$BAK_INFO[0].'_singlenode.graphml');
-	
-	print GRAPHML <<END;
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:java="http://www.yworks.com/xml/yfiles-common/1.0/java" xmlns:sys="http://www.yworks.com/xml/yfiles-common/markup/primitives/2.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:y="http://www.yworks.com/xml/graphml" xmlns:yed="http://www.yworks.com/xml/yed/3" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd">
-  <!--Created by Rapid2Graph www.straumland.com-->
-  <key attr.name="Description" attr.type="string" for="graph" id="d0"/>
-  <key for="port" id="d1" yfiles.type="portgraphics"/>
-  <key for="port" id="d2" yfiles.type="portgeometry"/>
-  <key for="port" id="d3" yfiles.type="portuserdata"/>
-  <key attr.name="url" attr.type="string" for="node" id="d4"/>
-  <key attr.name="description" attr.type="string" for="node" id="d5"/>
-  <key for="node" id="d6" yfiles.type="nodegraphics"/>
-  <key for="graphml" id="d7" yfiles.type="resources"/>
-  <key attr.name="url" attr.type="string" for="edge" id="d8"/>
-  <key attr.name="description" attr.type="string" for="edge" id="d9"/>
-  <key for="edge" id="d10" yfiles.type="edgegraphics"/>
-  <graph edgedefault="directed" id="G">
-    <data key="d0"/>
-END
-	print GRAPHML2 <<END;
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:java="http://www.yworks.com/xml/yfiles-common/1.0/java" xmlns:sys="http://www.yworks.com/xml/yfiles-common/markup/primitives/2.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:y="http://www.yworks.com/xml/graphml" xmlns:yed="http://www.yworks.com/xml/yed/3" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd">
-  <!--Created by Rapid2Graph www.straumland.com-->
-  <key attr.name="Description" attr.type="string" for="graph" id="d0"/>
-  <key for="port" id="d1" yfiles.type="portgraphics"/>
-  <key for="port" id="d2" yfiles.type="portgeometry"/>
-  <key for="port" id="d3" yfiles.type="portuserdata"/>
-  <key attr.name="url" attr.type="string" for="node" id="d4"/>
-  <key attr.name="description" attr.type="string" for="node" id="d5"/>
-  <key for="node" id="d6" yfiles.type="nodegraphics"/>
-  <key for="graphml" id="d7" yfiles.type="resources"/>
-  <key attr.name="url" attr.type="string" for="edge" id="d8"/>
-  <key attr.name="description" attr.type="string" for="edge" id="d9"/>
-  <key for="edge" id="d10" yfiles.type="edgegraphics"/>
-  <graph edgedefault="directed" id="G">
-    <data key="d0"/>
-END
-	
-	print GRAPHML $GRAPHML_NODES;
-	print GRAPHML $GRAPHML_LINKS;
-	print GRAPHML2 $GRAPHML2_NODES;
-	print GRAPHML2 $GRAPHML2_LINKS;
-	
-	print GRAPHML <<END;
-  </graph>
-  <data key="d7">
-    <y:Resources/>
-  </data>
-</graphml>
-END
-	print GRAPHML2 <<END;
-  </graph>
-  <data key="d7">
-    <y:Resources/>
-  </data>
-</graphml>
-END
-	
-	close(GRAPHML);
-	close(GRAPHML2);
-
+	print '  New size:'.$#CONNECTIONS."\n";
 }
 
-sub generate_tgf_calls {
-	my($parent_node,$task,$module_from,$routine_from,$trap_prevent_recursion,$endless_recursion_prevention) = @_;
-	my($global,$local,$i,$j,$parent_to,$module_to,$routine_to_type);
+
+
+sub BackupFindRoutineCalls {
+	my($folder) = @_;
+	my($i,$j,$task,$task_name,$task_entry,$list_task,$decl_file,$decl_all,$decl_local,$decl_type,$decl_name);
 	
-	# If there are a local and a different global $routine_to, then we need to call the proper one.
-	CALLS:foreach $i (0..$#TASK_CALLS) {
-		
-		$module_to = '';
-		$routine_to_type = '';
-		
-		if ($task ne $TASK_CALLS[$i][0]) { next; }
-		if (lc($routine_from) ne lc($TASK_CALLS[$i][2])) { next; }
-		
-		$routine_to = $TASK_CALLS[$i][3];
-		
-		if ($routine_to =~ /^\[/) {
-			# Late binding call
-			$TGF_NODES .= $TGF_NODES_i.' '.$module_to.'/'.$routine_to_type.' '.$routine_to."\n";
-			$GRAPHML_NODES = NodeGraphmlLateB($TGF_NODES_i,$routine_to).$GRAPHML_NODES;
-			$parent_to = $TGF_NODES_i;
-			$TGF_LINKS .= $parent_node.' '.$parent_to.' '."\n";
-			$GRAPHML_LINKS .= NodeGraphmlEdge($GRAPHML_EDGE_i,$parent_node,$parent_to);
-			$GRAPHML_EDGE_i++;
-			$TGF_NODES_i++;
-			next CALLS;
+	# Start with Main() (or task entry point)
+	foreach $i (0..$#TASK_LIST) {
+		($task,$task_name,$task_entry) = split(/;/,$TASK_LIST[$i]);
+		foreach $j (0..$#DECL_ROUTINES) {
+			($list_task,$decl_file,$decl_all,$decl_local,$decl_type,$decl_name) = split(/;/,$DECL_ROUTINES[$j]);
+			if (($task eq $list_task) && (lc($task_entry) eq lc($decl_name)) && ($decl_local eq '') && (uc($decl_type) eq 'PROC')) {
+				Add_Connections($folder,$j);
+			}
 		}
-		
-		$local = 0;
-		$global = 0;
-		foreach $j (0..$#TASK_ROUTINES) {
-			# @TASK_ROUTINES = ( [$TASKn, $module, $routine, $type, $local] );
-			if (($task eq $TASK_ROUTINES[$j][0]) && ($module_from eq $TASK_ROUTINES[$j][1]) && (lc($routine_to) eq lc($TASK_ROUTINES[$j][2])) && ($TASK_ROUTINES[$j][4])) {
-				$module_to = $TASK_ROUTINES[$j][1];
-				$routine_to_type = $TASK_ROUTINES[$j][3];
-				$local = 1;	
+	}
+	
+	# Also perform a "start" with all defined event-routines.
+	my($eventroutine, $eventaction, $eventtask, $taskn, $taskname, $alltask);
+	foreach (@EVENT_ROUTINE_LIST) {
+		($eventroutine, $eventaction, $eventtask) = split(/;/, $_);
+		foreach (@TASK_LIST) {
+			($taskn, $taskname) = split(/;/, $_);
+			if ($taskname eq $eventtask) {
 				last;
 			}
-			if (($task eq $TASK_ROUTINES[$j][0]) && (lc($routine_to) eq lc($TASK_ROUTINES[$j][2]))) {
-				$module_to = $TASK_ROUTINES[$j][1];
-				$routine_to_type = $TASK_ROUTINES[$j][3];
-				$global = 1;
+		}
+		
+		foreach $j (0..$#DECL_ROUTINES) {
+			($list_task, $decl_file, $decl_all, $decl_local, $decl_type, $decl_name) = split(/;/,$DECL_ROUTINES[$j]);
+			if (($taskn eq $list_task) && (lc($eventroutine) eq lc($decl_name)) && ($decl_local eq '') && (uc($decl_type) eq 'PROC')) {
+				Add_Connections($folder,$j);
 			}
 		}
-		if (($local + $global) == 0) {
-			print 'ERROR: ['.$task.'/'.$module_from.'/'.$routine_from.'] made a call to non-existant ['.$routine_to.']'."\n";
-			#foreach $j (0..$#TASK_ROUTINES) {
-			#	print '*'.$routine_to.', '.$TASK_ROUTINES[$j][0].'/'.$TASK_ROUTINES[$j][1].'/'.$TASK_ROUTINES[$j][2].':'.$TASK_ROUTINES[$j][4]."\n";
-			#}
-			#exit;
-			next CALLS;
-		}
-
-		if ($endless_recursion_prevention =~ /$routine_to/i) {
-			$recursion_warning = "\n".'WARNING: Endless recursion stopped';
-		} else {
-			$recursion_warning = '';
-		}
-		
-		if ($DEBUG) { print '  '.$task.'/'.$module_from.'/'.$routine_from.' -> '.$module_to.'/'.$routine_to."\n"; }
-		
-		# Create node
-		#   TGF
-		$TGF_NODES .= $TGF_NODES_i.' '.$module_to.'/'.$routine_to_type.' '.$routine_to."\n";
-		#   GRAPHML
-		if (uc($routine_to_type) eq 'TRAP') {
-			$GRAPHML_NODES = NodeGraphmlTrap($TGF_NODES_i,$routine_to_type.' '.$routine_to."\n".$module_to.$recursion_warning).$GRAPHML_NODES;
-		} elsif ($routine_to_type =~ /^FUNC/i) {
-			$GRAPHML_NODES = NodeGraphmlFunc($TGF_NODES_i,$routine_to_type.' '.$routine_to."\n".$module_to.$recursion_warning).$GRAPHML_NODES;
-		} else {
-			$GRAPHML_NODES = NodeGraphmlProc($TGF_NODES_i,$routine_to_type.' '.$routine_to."\n".$module_to.$recursion_warning).$GRAPHML_NODES;
-		}
-		$parent_to = $TGF_NODES_i;
-		#   GRAPHML2
-		if ($GRAPHML2_NODEREF{$task.'/'.$module_to.'/'.$routine_to_type.' '.$routine_to}) {
-			$parent_to = $GRAPHML2_NODEREF{$task.'/'.$module_to.'/'.$routine_to_type.' '.$routine_to};
-		} else {
-			if (uc($routine_to_type) eq 'TRAP') {
-				$GRAPHML2_NODES = NodeGraphmlTrap($TGF_NODES_i,$routine_to_type.' '.$routine_to."\n".$module_to.$recursion_warning).$GRAPHML2_NODES;
-			} elsif ($routine_to_type =~ /^FUNC/i) {
-				$GRAPHML2_NODES = NodeGraphmlFunc($TGF_NODES_i,$routine_to_type.' '.$routine_to."\n".$module_to.$recursion_warning).$GRAPHML2_NODES;
-			} else {
-				$GRAPHML2_NODES = NodeGraphmlProc($TGF_NODES_i,$routine_to_type.' '.$routine_to."\n".$module_to.$recursion_warning).$GRAPHML2_NODES;
-			}
-			$GRAPHML2_NODEREF{$task.'/'.$module_to.'/'.$routine_to_type.' '.$routine_to} = $parent_to;
-		}
-		
-		
-		# Create link
-		#   TGF
-		$TGF_LINKS .= $parent_node.' '.$parent_to.' '."\n";
-		#   GRAPHML
-		$GRAPHML_LINKS .= NodeGraphmlEdge($GRAPHML_EDGE_i,$parent_node,$parent_to);
-		$GRAPHML_EDGE_i++;
-		#   GRAPHML2
-		if ($GRAPHML2_EDGEREF{$parent_node.';'.$parent_to}) {
-			# Nop
-		} else {
-			$GRAPHML2_LINKS .= NodeGraphmlEdge($GRAPHML_EDGE_i,$parent_node,$parent_to);
-			$GRAPHML2_EDGEREF{$parent_node.';'.$parent_to} = 1;
-		}
-
-		$TGF_NODES_i++;
-
-		# Call to self will trigger infinite recursion, so we try to avoid it
-		if (lc($routine_from) eq lc($routine_to)) { next; }
-		
-		# Prevent endless recursion
-		if ($endless_recursion_prevention =~ /$routine_to/i) { next; }
-
-		# Trap routines will not be traversed, only added.
-		if (uc($routine_to_type) eq 'TRAP') {
-			# Trap routines will traverse new trap routines
-			if ($trap_prevent_recursion) { next; }
-			generate_tgf_calls($parent_to,$task,$module_to,$routine_to,1,$endless_recursion_prevention.';'.$routine_to);
-		} else {
-			generate_tgf_calls($parent_to,$task,$module_to,$routine_to,$trap_prevent_recursion,$endless_recursion_prevention.';'.$routine_to);
-		}
-
 	}
+	
+	# Unused routines will also be traversed.
+	# $PROCESSED_ROUTINES{$key} = $value : [$keys=index-@DECL_ROUTINES, $value=1]
+	# @DECL_ROUTINES : <$from_task,$from_file,$from_all,$from_local,$from_type,$from_name>
+	# First iteration tags all unused routines, we then process these and preserve the tags for
+	# graphml formatting.
+	foreach $j (0..$#DECL_ROUTINES) {
+		if ($PROCESSED_ROUTINES{$j}) {
+			# Do nothing
+		} else {
+			# Tag as non-used and add-connections
+			$UNUSED_ROUTINES{$j} = 1;
+		}			
+	}
+	foreach $j (0..$#DECL_ROUTINES) {
+		if ($PROCESSED_ROUTINES{$j}) {
+			# Do nothing
+		} else {
+			# Tag as non-used and add-connections
+			Add_Connections($folder,$j);
+		}			
+	}
+	
 }
 
-sub NodeGraphmlMain {
-	my($id,$text) = @_;
 
-	my($text) = <<END;
-    <node id="n$id">
-      <data key="d4" xml:space="preserve"/>
+
+sub Add_Connections {
+	my($folder,$i) = @_;
+
+	my($from_task,$from_file,$from_all,$from_local,$from_type,$from_name) = split(/;/,$DECL_ROUTINES[$i]);
+
+	# If this routine has been processed, early exit
+	if ($PROCESSED_ROUTINES{$i}) {
+		# Allready done
+		#print '[Allready done:'.$i.']';
+		return;
+	}
+	$PROCESSED_ROUTINES{$i} = 1;
+	
+	my(@PROCESSED_ROUTINES_keys) = keys %PROCESSED_ROUTINES;
+	print $#PROCESSED_ROUTINES_keys.'/'.$#DECL_ROUTINES.' ';
+	if ($#DECL_ROUTINES != 0) {
+		print int($#PROCESSED_ROUTINES_keys / $#DECL_ROUTINES * 100).'% ';
+	}
+	print $from_file.', '.$from_all."\n";
+
+	my($line);
+	my($procedure_data) = '';
+	
+	# Read until we find the correct procedure declaration
+	my($m) = 0;
+	while ($m <= $#{$FILEDATA{$folder.$from_file}}) {
+		$line = ${$FILEDATA{$folder.$from_file}}[$m];
+		$m++;
+		if ($line =~ /^[\s\t]*\Q$from_all\E[^\w\d_]/) {
+			last;
+		}
+	}
+	# Read routine
+	my($latebinding_found) = 0;
+	my($latebinding_addressed) = 0;
+	my($j,$k,$to_task,$to_file,$to_all,$to_local,$to_type,$to_name,@routine_array);
+	while ($m <= $#{$FILEDATA{$folder.$from_file}}) {
+		$line = ${$FILEDATA{$folder.$from_file}}[$m];
+		$m++;
+
+		if ($line =~ /^[\t\s]*!\s*Verified/i) {
+			$VERIFIED_ROUTINES{$from_task.'/'.$from_file.'/'.$from_all} = 1;
+		}
+		if (($line =~ /^[\t\s]*\%.+\%.*;/) || ($line =~ /([^\w\d_]|^)CallByVar[^\w\d_]/)) {
+			$latebinding_found = 1;
+		}
+		if ($line =~ /!\s+Rapid2Graph\s+\[(.+)\]/) {
+			$latebinding_addressed = 1;
+			@routine_array = split(/,/,$1);
+			foreach $k (0..$#routine_array) {
+
+				CheckConnectionMatch($routine_array[$k],$from_task,$from_file,$folder,$i);
+				
+			}
+		}
+		
+		# Check for MoveLJCSync late bind before we remove strings and other junk
+		if ($line =~ /Move(L|J|C)Sync.*"(.+?)";/i) {
+			CheckConnectionMatch($2,$from_task,$from_file,$folder,$i);
+		} elsif ($line =~ /Move(L|J|C)Sync\W/i) {
+			# Likely a latebindcall
+			$latebinding_found = 1;
+		}
+
+		# Cleanup line of code
+		# declared text
+		$line =~ s/(\".*?\")//g;
+		# Remove comments
+		$line =~ s/!.*$//;
+		# Remove startjunk
+		$line =~ s/^[\s\t]*//;
+		# Remove endjunk
+		$line =~ s/[\s\t\r\n]*$//;
+		# Shorten all multispace to singlespace
+		$line =~ s/\s+/ /g;
+		
+		# If empty line trynext
+		if ($line eq '') {
+			next;
+		}
+		
+		# Break loop if we find end of procedure
+		if ($line =~ /^[\s\t]*(ERROR|UNDO|ENDPROC|ENDFUNC|ENDTRAP)([^\w\d_]|$)/i) {
+			last;
+		} else {
+			$procedure_data .= $line."\n";
+		}
+	}
+
+    # First check for any local matches
+    my(%LOCAL_MATCHES);
+    grep {
+        ($to_task,$to_file,$to_all,$to_local,$to_type,$to_name) = split(/;/,$DECL_ROUTINES[$_]);
+        $to_task eq $from_task && $to_file eq $from_file &&
+		$procedure_data =~ /([^\w\d_]|^)\Q$to_name\E[^\w\d_]/mi &&
+		($LOCAL_MATCHES{$to_name} = 1) &&
+		(push(@CONNECTIONS, "$i;$_"), Add_Connections($folder, $_));
+    } (0..$#DECL_ROUTINES);
+
+    # If no local matches, search for global matches
+    grep {
+        ($to_task,$to_file,$to_all,$to_local,$to_type,$to_name) = split(/;/,$DECL_ROUTINES[$_]);
+        $to_task eq $from_task &&
+		(!$to_local || $to_file eq $from_file) &&
+		!defined($LOCAL_MATCHES{$to_name}) &&
+		$procedure_data =~ /([^\w\d_]|^)\Q$to_name\E[^\w\d_]/mi &&
+		(push(@CONNECTIONS, "$i;$_"), Add_Connections($folder, $_));
+    } (0..$#DECL_ROUTINES);
+	
+	if (($latebinding_found == 1) && ($latebinding_addressed == 0)) {
+		push(@WARNING_LATEBINDING,$from_file.'/'.$from_name);
+	}
+	
+	# For debugging. Will output specified routine content to out2.log
+	if ($from_name eq 'ChangeGun') {
+		open(FILE,'>out3.log');
+		print FILE $procedure_data;
+		close(FILE);
+	}
+	
+}
+
+
+
+sub CheckConnectionMatch {
+    my($text, $from_task, $from_file, $folder, $i) = @_;
+    my($to_task, $to_file, $to_all, $to_local, $to_type, $to_name);
+
+    # Remove quotes from line if detected
+    $text =~ s/"[^"]*"//g;
+	
+	# Remote ProCall to LOCAL declared?
+	if ($text =~ /([\w\d_\.]+)\:([\w\d_]+)/) {
+		my($remote_module) = $1;
+		my($remote_procedure) = $2;
+		
+		my(@remote_matches) = grep {
+			($to_task,$to_file,$to_all,$to_local,$to_type,$to_name) = split(/;/,$DECL_ROUTINES[$_]);
+			$to_task eq $from_task &&
+			(($to_file eq '/RAPID/'.$from_task.'/PROGMOD/'.$remote_module) || ($to_file eq '/RAPID/'.$from_task.'/SYSMOD/'.$remote_module)) &&
+			$remote_procedure eq $to_name
+		} (0..$#DECL_ROUTINES);
+		
+		#print '  DEBUG:'.$text.',/RAPID/'.$from_task.'/(PROGMOD|SYSMOD)/'.$remote_module.','.$remote_procedure.' Matches:'.$#remote_matches."\n";
+		#foreach (@DECL_ROUTINES) {
+		#	($to_task,$to_file,$to_all,$to_local,$to_type,$to_name) = split(/;/,$_);
+		#	print '  '.$to_task.'='.$from_task.' && '.$to_file.'=~/RAPID/'.$from_task.'/(PROGMOD|SYSMOD)/'.$remote_module.' && '.$remote_procedure.'='.$to_name;
+		#	if ($to_task eq $from_task &&
+		#		$to_file =~ /\/RAPID\/$from_task\/(PROGMOD|SYSMOD)\/$remote_module/ &&
+		#		$remote_procedure eq $to_name) {
+		#		print ' MATCH';
+		#	} else {
+		#		print ' no match';
+		#	}
+		#	print "\n";
+		#}
+		
+		# Match?
+		if (@remote_matches) {
+			push(@CONNECTIONS,$i.';'.$remote_matches[0]);
+			Add_Connections($folder,$remote_matches[0]);
+			return;
+		}
+	}
+
+
+    # First check for any local matches
+    my(@local_matches) = grep {
+        ($to_task,$to_file,$to_all,$to_local,$to_type,$to_name) = split(/;/,$DECL_ROUTINES[$_]);
+        $to_task eq $from_task &&
+		$to_file eq $from_file &&
+		$text eq $to_name
+	} (0..$#DECL_ROUTINES);
+	
+	# Match?
+	if (@local_matches) {
+		push(@CONNECTIONS,$i.';'.$local_matches[0]);
+		Add_Connections($folder,$local_matches[0]);
+		return;
+	}
+
+    # If no local matches, search for global matches
+    my(@global_matches) = grep {
+        ($to_task,$to_file,$to_all,$to_local,$to_type,$to_name) = split(/;/,$DECL_ROUTINES[$_]);
+        $to_task eq $from_task &&
+		(!$to_local || $to_file eq $from_file) &&
+		$text eq $to_name
+    } (0..$#DECL_ROUTINES);
+
+	# Match?
+	if (@global_matches) {
+		push(@CONNECTIONS,$i.';'.$global_matches[0]);
+		Add_Connections($folder,$global_matches[0]);
+		return;
+	}
+	
+    # No matches
+}
+
+
+
+sub BackupFindDeclRoutines {
+	my($folder,@PROG_MODULES) = @_;
+	my($ignored);
+	my(@DECL_ROUTINES);
+	my($i,$line,$FILE,$decl_all,$decl_local,$decl_type,$decl_name,$list_task,$list_file);
+	foreach $i (0..$#PROG_MODULES) {
+		($list_task,$list_file) = split(/;/,$PROG_MODULES[$i]);
+
+		$ignored = 0;
+		foreach $line (@{$FILEDATA{$folder.$list_file}}) {
+			if ($line =~ /!\s*Rapid2Graph\s+Ignore/i) {
+				# Everything after this point should be ignored, so we add a suffix to differentiate
+				$ignored = 1;
+			}
+			$decl_all = '';
+			$decl_local = '';
+			$decl_type = '';
+			$decl_name = '';
+			#if ($line =~ /^[\s\t]*(((LOCAL)\s+)?(PROC|FUNC\s+[\w\d_]+|TRAP)\s+([\w\d_]+))/i) {
+			if ($line =~ /^[\s\t]*(((LOCAL)\s+)?(PROC|FUNC\s+[\w\d_]+|TRAP)\s+([^\(]+))(\(|\n|\r|$)/i) {
+				
+				$decl_all = $1 if ($1);
+				$decl_local = $3 if ($3);
+				$decl_type = $4 if ($4);
+				$decl_name = $5 if ($5);
+				$decl_all =~ s/\s+/ /g;
+				$decl_type =~ s/\s+/ /g;
+				if ($ignored) {
+					$decl_all .= '_(Ignored)';
+					$decl_name .= '_(Ignored)';
+				}
+				
+				# Remove trailing junk
+				chomp($decl_all);
+				chomp($decl_name);
+				$decl_all =~ s/[\t\s\r\n]+$//g;
+				$decl_name =~ s/[\t\s\r\n]+$//g;
+				
+				push(@DECL_ROUTINES,$list_task.';'.$list_file.';'.$decl_all.';'.$decl_local.';'.$decl_type.';'.$decl_name);			
+			}
+		}
+	}
+	return(@DECL_ROUTINES);
+}
+
+
+
+sub BackupFindProgModules {
+	my($folder) = @_;
+	my($i,$de,$DIR,$list_task,$list_task_name,$list_task_entry,$FILE,$line);
+	foreach $i (0..$#TASK_LIST) {
+		($list_task,$list_task_name,$list_task_entry) = split(/;/,$TASK_LIST[$i]);
+		opendir($DIR,$folder.'/RAPID/'.$list_task.'/PROGMOD');
+		foreach $de (readdir($DIR)) {
+			if ($de =~ /\.mod(x?)/i) {
+				push(@PROG_MODULES,$list_task.';/RAPID/'.$list_task.'/PROGMOD/'.$de);
+				
+				open($FILE,'<'.$folder.'/RAPID/'.$list_task.'/PROGMOD/'.$de);
+				while ($line = <$FILE>) {
+					push(@{$FILEDATA{$folder.'/RAPID/'.$list_task.'/PROGMOD/'.$de}},$line);
+				}
+				close($FILE);
+			}
+		}
+		closedir($DIR);
+		opendir($DIR,$folder.'/RAPID/'.$list_task.'/SYSMOD');
+		foreach $de (readdir($DIR)) {
+			if ($de =~ /\.sys(x?)/i) {
+				push(@PROG_MODULES,$list_task.';/RAPID/'.$list_task.'/SYSMOD/'.$de);
+
+				open($FILE,'<'.$folder.'/RAPID/'.$list_task.'/SYSMOD/'.$de);
+				while ($line = <$FILE>) {
+					push(@{$FILEDATA{$folder.'/RAPID/'.$list_task.'/SYSMOD/'.$de}},$line);
+				}
+				close($FILE);
+			}
+		}
+		closedir($DIR);
+	}
+	return(@PROG_MODULES);
+}
+
+
+
+sub BackupFindTaskEntryPoints {
+	my($folder) = @_;
+	my($FILE,$de,$line,$task_name,$task_entry,$list_task,$list_task_name);
+	foreach $i (0..$#TASK_LIST) {
+		($list_task,$list_task_name) = split(/;/,$TASK_LIST[$i]);
+		$TASK_LIST[$i] = $list_task.';'.$list_task_name.';Main';
+	}
+	open($FILE,'<'.$folder.'/SYSPAR/SYS.cfg');
+	while ($line = <$FILE>) {
+		if ($line =~ /^CAB_TASKS:/) {
+			last;
+		}
+	}
+	while ($line = <$FILE>) {
+		chop($line);
+		if ($line =~ /^#/) {
+			last;
+		} else {
+			while ($line =~ /\\$/) {
+				chop($line);
+				$line .= <$FILE>;
+				chop($line);
+			}
+			if ($line =~ /-Name\s+"([\w\d_]+)".*-Entry\s+"([\w\d_]+)"/) {
+				$task_name = $1;
+				$task_entry = $2;
+				foreach $i (0..$#TASK_LIST) {
+					($list_task,$list_task_name) = split(/;/,$TASK_LIST[$i]);
+					if ($task_name eq $list_task_name) {
+						$TASK_LIST[$i] = $list_task.';'.$list_task_name.';'.$task_entry;
+						last;
+					}
+				}
+			}
+		}
+	}
+	close($FILE);
+	return;
+}
+
+
+
+sub BackupFindEventRoutines {
+	my($folder) = @_;
+	my($FILE, $line, $event_routine, $event_action, $event_task, $event_alltask, $taskn, $taskname);
+	open($FILE,'<'.$folder.'/SYSPAR/SYS.cfg');
+	while ($line = <$FILE>) {
+		if ($line =~ /^CAB_EXEC_HOOKS:/) {
+			last;
+		}
+	}
+	while ($line = <$FILE>) {
+		chop($line);
+		if ($line =~ /^#/) {
+			last;
+		} else {
+			while ($line =~ /\\$/) {
+				chop($line);
+				$line .= <$FILE>;
+				chop($line);
+			}
+			$event_alltask = '';
+			if ($line =~ /-Routine\s+"([\w\d_]+)".*-Shelf\s+"([\w\d_]+)".*-Task\s+"([\w\d_]+)"(\s+-AllTask)?/) {
+				$event_routine = $1;
+				$event_action = $2;
+				$event_task = $3;
+				if (defined($4)) {
+					$event_alltask = 'ALL';
+					foreach (@TASK_LIST) {
+						($taskn, $taskname) = split(/;/, $_);
+						push(@EVENT_ROUTINE_LIST, $event_routine.';'.$event_action.';'.$taskname);
+					}
+				} else {
+					push(@EVENT_ROUTINE_LIST, $event_routine.';'.$event_action.';'.$event_task);
+				}
+			}
+		}
+	}
+	close($FILE);
+}
+
+
+
+sub BackupFindTaskList {
+	my($folder) = @_;
+	my(@list) = ();
+	my($FILE,$line,);
+	open($FILE,'<'.$folder.'/BACKINFO/backinfo.txt');
+	while ($line = <$FILE>) {
+
+		# Old syntax
+		# >>TASK0: (MAIN)
+		
+		# New syntax
+		# >>TASK0: (MAIN,<name>)
+
+		if ($line =~ />>(TASK\d+):\s\(([\w\d_]+)/) {
+			push(@list,$1.';'.$2);			
+		}
+	}
+	close($FILE);
+	return(@list);
+}
+
+
+
+sub BackupFindMostRecent {
+	my($folder) = @_;
+	my($backupfolder_latest) = 'Not found';
+	$BACKUP_TIME = 0;
+	my($DIR,$FILE,$line,$de,$current_time,$current_id,$products_id);
+	opendir($DIR,'.');
+	foreach $de (readdir($DIR)) {
+		if (-d ($folder.'/'.$de)) {
+			if (-e $folder.'/'.$de.'/BACKINFO/backinfo.txt') {
+				$current_time = 0;
+				$current_id = 0;
+				$products_id = 0;
+				open($FILE,'<'.$folder.'/'.$de.'/BACKINFO/backinfo.txt');
+				while ($line = <$FILE>) {
+					if ($line =~ /(\d\d|\d\d\d\d)-(\d\d)-(\d\d)\s+(\d\d):(\d\d):(\d\d)/) {
+						$current_time = timelocal($6, $5, $4, $3, ($2-1), $1);
+					} elsif ($line =~ /^>>SYSTEM_ID:/) {
+						$current_id = <$FILE>;
+						chop($current_id);
+					} elsif ($line =~ /^>>PRODUCTS_ID:/) {
+						$products_id = <$FILE>;
+						chop($products_id);
+					}
+					if ($current_time && $current_id && $products_id) {
+						last;
+					}
+				}
+				close($FILE);
+				print '    '.$folder.'/'.$de.' '.$current_time;
+				if ($current_time > $BACKUP_TIME) {
+					$BACKUP_TIME = $current_time;
+					$BACKUP_ID = $current_id;
+					$BACKUP_RW = $products_id;
+					$backupfolder_latest = $folder.'/'.$de;
+					print ' *';
+				}
+				print "\n";
+			}
+		}
+	}
+	closedir($DIR);
+	return($backupfolder_latest);
+}
+
+
+
+##### For generating graphml filefield
+
+
+
+sub generate_graphml {
+	my($folder) = @_;
+
+	open(GRAPHML2, '>'.$folder.'_singlenode.graphml') or die('Unable to open ['.$folder.'_singlenode.graphml]');
+	my($time_backup) = FormatTime($BACKUP_TIME);
+	my($time_generated) = FormatTime(time());
+	print GRAPHML2 <<END;
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:java="http://www.yworks.com/xml/yfiles-common/1.0/java" xmlns:sys="http://www.yworks.com/xml/yfiles-common/markup/primitives/2.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:y="http://www.yworks.com/xml/graphml" xmlns:yed="http://www.yworks.com/xml/yed/3" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd">
+	<key for="node" id="d5" yfiles.type="nodegraphics"/>
+	<key for="node" id="d6" yfiles.type="nodegraphics"/>
+	<key for="edge" id="d10" yfiles.type="edgegraphics"/>
+	<key for="graph" id="user" attr.name="User" attr.type="string"/>
+	<key for="graph" id="user_machine" attr.name="User machine" attr.type="string"/>
+	<key for="graph" id="generator" attr.name="Generator" attr.type="string"/>
+	<key for="graph" id="generator_rev" attr.name="Generator revision" attr.type="string"/>
+	<key for="graph" id="generated_time" attr.name="Generated time" attr.type="string"/>
+	<key for="graph" id="author" attr.name="Author" attr.type="string"/>
+	<key for="graph" id="author_web" attr.name="Author www" attr.type="string"/>
+	<key for="graph" id="robot_id" attr.name="Robot ID" attr.type="string"/>
+	<key for="graph" id="backup_robotware" attr.name="Backup robotware" attr.type="string"/>
+	<key for="graph" id="backup_time" attr.name="Backup time" attr.type="string"/>
+	<graph edgedefault="directed" id="G">
+		<data key="user">$APP_USER</data>
+		<data key="user_machine">$APP_USER_MACHINE</data>
+		<data key="generator">$APP_NAME</data>
+		<data key="generator_rev">$APP_REV</data>
+		<data key="generated_time">$time_generated</data>
+		<data key="author">$APP_AUTH</data>
+		<data key="author_web" href="$APP_WEB">$APP_WEB</data>
+		<data key="robot_id">$BACKUP_ID</data>
+		<data key="backup_robotware">$BACKUP_RW</data>
+		<data key="backup_time">$time_backup</data>
+
+END
+
+	my($i,$j,$list_task,$decl_file,$decl_all,$decl_local,$decl_type,$decl_name,$from,$to);
+	my($task,$task_name,$task_entry);
+	my($id_i) = $#DECL_ROUTINES + 1;
+	my(%modules,@module_list);
+
+	# Grouping tasks
+	# Generating nodes
+	
+	foreach $i (0..$#TASK_LIST) {
+		($task,$task_name,$task_entry) = split(/;/,$TASK_LIST[$i]);
+		print GRAPHML2 <<END;
+		<!-- GROUP TASK $task, $task_name -->
+		<node id="n$id_i" yfiles.foldertype="group">
+			<data key="d5">
+				<y:ProxyAutoBoundsNode>
+					<y:Realizers active="0">
+					<y:GroupNode>
+					<y:Fill hasColor="false" transparent="false"/>
+					<y:BorderStyle color="#000000" type="dashed_dotted" width="2.0"/>
+					<y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#FF9900" fontSize="30" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">$task, $task_name</y:NodeLabel>
+					<y:Shape type="roundrectangle"/>
+					<y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
+				</y:GroupNode>
+				</y:Realizers>
+				</y:ProxyAutoBoundsNode>
+			</data>
+			<graph edgedefault="directed" id="n$id_i:">
+
+END
+
+		$id_i++;
+		
+		# Generate list of modules
+		%modules = ();
+		foreach $j (0..$#DECL_ROUTINES) {
+			($list_task,$decl_file,$decl_all,$decl_local,$decl_type,$decl_name) = split(/;/,$DECL_ROUTINES[$j]);
+		
+			if ($list_task ne $task) {
+				next;
+			}
+			
+			$modules{$decl_file} = 1;
+		}
+		@module_list = keys %modules;
+		
+		my($value_module);
+		foreach $j (0..$#module_list) {
+			$value_module = $module_list[$j];
+			if ($value_module =~ /linkedm.sys$/i) {
+				# ABB internal stuff, ignore
+				next;
+			}
+			$value_module =~ s/[^a-z0-9_\.\/]/_/gi;
+			print GRAPHML2 <<END;
+				<!-- GROUP MODULE $value_module -->
+				<node id="n$id_i" yfiles.foldertype="group">
+					<data key="d5">
+						<y:ProxyAutoBoundsNode>
+							<y:Realizers active="0">
+							<y:GroupNode>
+							<y:Fill hasColor="false" transparent="false"/>
+							<y:BorderStyle color="#000000" type="dashed_dotted" width="1.0"/>
+							<y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#AAAAFF" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">$value_module</y:NodeLabel>
+							<y:Shape type="roundrectangle"/>
+							<y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
+						</y:GroupNode>
+						</y:Realizers>
+						</y:ProxyAutoBoundsNode>
+					</data>
+					<graph edgedefault="directed" id="n$id_i:">
+
+END
+
+			$id_i++;
+
+			foreach $i (0..$#DECL_ROUTINES) {
+				($list_task,$decl_file,$decl_all,$decl_local,$decl_type,$decl_name) = split(/;/,$DECL_ROUTINES[$i]);
+			
+				if ($list_task ne $task) {
+					next;
+				}
+			
+				if ($decl_file ne $module_list[$j]) {
+					next;
+				}
+
+				if (lc($task_entry) eq lc($decl_name)) {
+					#print GRAPHML2 NodeGraphmlMain($i,$decl_all."\n".$decl_file);
+					print GRAPHML2 NodeGraphmlMain($i,$decl_all,$list_task.'/'.$decl_file.'/'.$decl_all);
+				} elsif ($decl_type =~ /^FUNC/i) {
+					#print GRAPHML2 NodeGraphmlFunc($i,$decl_all."\n".$decl_file);
+					print GRAPHML2 NodeGraphmlFunc($i,$decl_all,$list_task.'/'.$decl_file.'/'.$decl_all);
+				} elsif ($decl_type =~ /^TRAP/i) {
+					#print GRAPHML2 NodeGraphmlTrap($i,$decl_all."\n".$decl_file);
+					print GRAPHML2 NodeGraphmlTrap($i,$decl_all,$list_task.'/'.$decl_file.'/'.$decl_all);
+				} else {
+					#print GRAPHML2 NodeGraphmlProc($i,$decl_all."\n".$decl_file);
+					print GRAPHML2 NodeGraphmlProc($i,$decl_all,$list_task.'/'.$decl_file.'/'.$decl_all,$decl_name,$task_name);
+				}
+			}
+
+			print GRAPHML2 <<END;
+					<!-- /GROUP MODULE $value_module -->
+					</graph>
+				</node>
+
+END
+
+		}
+
+		print GRAPHML2 <<END;
+			<!-- /GROUP $task, $task_name -->
+			</graph>
+		</node>
+END
+
+	}
+	
+	# Generate edges
+	foreach $i (0..$#CONNECTIONS) {
+		($from,$to) = split(/;/,$CONNECTIONS[$i]);
+		
+		print GRAPHML2 NodeGraphmlEdge($id_i,$from,$to);
+		
+		$id_i++;
+	}
+	
+	print GRAPHML2 <<END;
+		<!-- GROUP LEGEND -->
+		<node id="n$id_i" yfiles.foldertype="group">
+			<data key="d5">
+				<y:ProxyAutoBoundsNode>
+					<y:Realizers active="0">
+					<y:GroupNode>
+					<y:Fill hasColor="false" transparent="false"/>
+					<y:BorderStyle color="#000000" type="dashed_dotted" width="2.0"/>
+					<y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#FF9900" fontSize="30" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">LEGEND / TASK GROUP</y:NodeLabel>
+					<y:Shape type="roundrectangle"/>
+					<y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
+				</y:GroupNode>
+				</y:Realizers>
+				</y:ProxyAutoBoundsNode>
+			</data>
+			<graph edgedefault="directed" id="n$id_i:">
+END
+	$id_i++;
+	print GRAPHML2 <<END;
+				<!-- GROUP LEGEND TASK -->
+				<node id="n$id_i" yfiles.foldertype="group">
+					<data key="d5">
+						<y:ProxyAutoBoundsNode>
+							<y:Realizers active="0">
+							<y:GroupNode>
+							<y:Fill hasColor="false" transparent="false"/>
+							<y:BorderStyle color="#000000" type="dashed_dotted" width="1.0"/>
+							<y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#AAAAFF" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">MODULE</y:NodeLabel>
+							<y:Shape type="roundrectangle"/>
+							<y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
+						</y:GroupNode>
+						</y:Realizers>
+						</y:ProxyAutoBoundsNode>
+					</data>
+					<graph edgedefault="directed" id="n$id_i:">
+END
+
+	$id_i++;
+	print GRAPHML2 <<END;
+    <node id="n$id_i">
       <data key="d6">
         <y:ShapeNode>
-          <y:Geometry height="30.0" width="300.0" x="-185.0" y="0.0"/>
+          <y:Geometry height="30.0" width="250.0"/>
           <y:Fill color="#66FFFF" color2="#FFFFFF" transparent="false"/>
-          <y:BorderStyle color="#000000" raised="false" type="line" width="1.0"/>
-          <y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="18.701171875" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="36.671875" x="181.6640625" xml:space="preserve" y="5.6494140625">$text<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="0.0" labelRatioY="0.0" nodeRatioX="0.0" nodeRatioY="0.0" offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
+          <y:BorderStyle color="#000000" type="line" width="1.0"/>
+          <y:NodeLabel alignment="center" textColor="#000000" visible="true">Task Entry Point</y:NodeLabel>
           <y:Shape type="fatarrow"/>
         </y:ShapeNode>
       </data>
     </node>
 END
 
-	return($text);
-}
-
-sub NodeGraphmlProc {
-	my($id,$text) = @_;
-
-	my($text) = <<END;
-    <node id="n$id">
-      <data key="d4" xml:space="preserve"/>
+	$id_i++;
+	print GRAPHML2 <<END;
+    <node id="n$id_i">
       <data key="d6">
         <y:ShapeNode>
-          <y:Geometry height="30.0" width="300.0" x="275.55428075226064" y="-55.15656605691234"/>
-          <y:Fill hasColor="false" transparent="false"/>
-          <y:BorderStyle color="#000000" raised="false" type="line" width="1.0"/>
-          <y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="18.701171875" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="38.669921875" x="180.6650390625" xml:space="preserve" y="5.6494140625">$text<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="0.0" labelRatioY="0.0" nodeRatioX="0.0" nodeRatioY="0.0" offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
+          <y:Geometry height="30.0" width="250.0"/>
+          <y:Fill color="#EEEEFF" color2="#FFFFFF" transparent="false"/>
+          <y:BorderStyle color="#000000" type="line" width="1.0"/>
+          <y:NodeLabel alignment="center" textColor="#000000" visible="true">Procedure</y:NodeLabel>
           <y:Shape type="rectangle"/>
         </y:ShapeNode>
       </data>
     </node>
 END
-
-	return($text);
-}
-
-sub NodeGraphmlFunc {
-	my($id,$text) = @_;
-
-	my($text) = <<END;
-    <node id="n$id">
-      <data key="d4" xml:space="preserve"/>
+	
+	$id_i++;
+	print GRAPHML2 <<END;
+    <node id="n$id_i">
       <data key="d6">
         <y:ShapeNode>
-          <y:Geometry height="30.0" width="300.0" x="275.55428075226064" y="-4.687458978060533"/>
+          <y:Geometry height="30.0" width="250.0"/>
           <y:Fill color="#FFCC99" color2="#FFFFFF" transparent="false"/>
-          <y:BorderStyle color="#000000" raised="false" type="line" width="1.0"/>
-          <y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="18.701171875" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="37.328125" x="181.3359375" xml:space="preserve" y="5.6494140625">$text<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="0.0" labelRatioY="0.0" nodeRatioX="0.0" nodeRatioY="0.0" offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
+          <y:BorderStyle color="#000000" type="line" width="1.0"/>
+          <y:NodeLabel alignment="center" textColor="#000000" visible="true">Function</y:NodeLabel>
           <y:Shape type="rectangle"/>
         </y:ShapeNode>
       </data>
     </node>
 END
 
-	return($text);
-}
-
-sub NodeGraphmlTrap {
-	my($id,$text) = @_;
-
-	my($text) = <<END;
-    <node id="n$id">
-      <data key="d4" xml:space="preserve"/>
+	$id_i++;
+	print GRAPHML2 <<END;
+    <node id="n$id_i">
       <data key="d6">
         <y:ShapeNode>
-          <y:Geometry height="30.0" width="300.0" x="275.55428075226064" y="51.40717346358417"/>
+          <y:Geometry height="30.0" width="250.0"/>
           <y:Fill color="#FF9999" color2="#FFFFFF" transparent="false"/>
-          <y:BorderStyle color="#000000" raised="false" type="line" width="1.0"/>
-          <y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="18.701171875" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="37.328125" x="181.3359375" xml:space="preserve" y="5.6494140625">$text<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="0.0" labelRatioY="0.0" nodeRatioX="0.0" nodeRatioY="0.0" offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
+          <y:BorderStyle color="#000000" type="line" width="1.0"/>
+          <y:NodeLabel alignment="center" textColor="#000000" visible="true">Trap</y:NodeLabel>
           <y:Shape type="parallelogram"/>
         </y:ShapeNode>
       </data>
     </node>
 END
-
-	return($text);
-}
-
-sub NodeGraphmlLateB {
-	my($id,$text) = @_;
-
-	my($text) = <<END;
-    <node id="n$id">
-      <data key="d4" xml:space="preserve"/>
+			
+	$id_i++;
+	print GRAPHML2 <<END;
+    <node id="n$id_i">
       <data key="d6">
         <y:ShapeNode>
-          <y:Geometry height="30.0" width="300.0" x="275.55428075226064" y="107.50180590522888"/>
-          <y:Fill color="#00CCFF" transparent="false"/>
-          <y:BorderStyle color="#000000" raised="false" type="line" width="1.0"/>
-          <y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="18.701171875" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="51.373046875" x="174.3134765625" xml:space="preserve" y="5.6494140625">$text<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="0.0" labelRatioY="0.0" nodeRatioX="0.0" nodeRatioY="0.0" offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
-          <y:Shape type="hexagon"/>
+          <y:Geometry height="30.0" width="250.0"/>
+          <y:Fill color="#DDFFDD" color2="#FFFFFF" transparent="false"/>
+          <y:BorderStyle color="#000000" type="line" width="1.0"/>
+          <y:NodeLabel alignment="center" textColor="#000000" visible="true">Event Routine</y:NodeLabel>
+          <y:Shape type="rectangle"/>
         </y:ShapeNode>
       </data>
     </node>
 END
 
-	return($text);
+	print GRAPHML2 <<END;
+					<!-- /MODULE GROUP -->
+					</graph>
+				</node>
+
+			
+			<!-- /LEGEND TASK GROUP -->
+			</graph>
+		</node>
+
+END
+
+	print GRAPHML2 <<END;
+	</graph>
+</graphml>
+
+END
+	close(GRAPHML2);
 }
+
+
+
+sub NodeGraphmlMain {
+	my($id,$text,$verified_text) = @_;
+
+	my($borderstyle) = '<y:BorderStyle color="#000000" type="line" width="1.0"/>';
+
+	if ($VERIFIED_ROUTINES{$verified_text}) {
+		# Found tag for manual OK
+		$borderstyle = '<y:BorderStyle color="#00cc00" type="line" width="2.0"/>';
+	}
+
+	my($res) = <<END;
+	<!-- NODE
+$text
+	-->
+    <node id="n$id">
+      <data key="d6">
+        <y:ShapeNode>
+          <y:Geometry height="30.0" width="250.0"/>
+          <y:Fill color="#66FFFF" color2="#FFFFFF" transparent="false"/>
+          $borderstyle
+          <y:NodeLabel alignment="center" textColor="#000000" visible="true">$text</y:NodeLabel>
+          <y:Shape type="fatarrow"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+	
+END
+
+	return($res);
+}
+
+
+
+sub NodeGraphmlProc {
+	my($id,$text,$verified_text,$decl_name,$decl_task) = @_;
+	
+	$text =~ s/[^a-z0-9_\.\/\s]/_/gi;
+
+	my($nodelabel) = '<y:NodeLabel alignment="center" textColor="#000000" visible="true">'.$text.'</y:NodeLabel>';
+	my($borderstyle) = '<y:BorderStyle color="#000000" type="line" width="1.0"/>';
+	my($fill) = '<y:Fill color="#EEEEFF" color2="#FFFFFF" transparent="false"/>';
+	
+	if (!($UNUSED_ROUTINES{$id})) {
+		# Keep values
+		if ($VERIFIED_ROUTINES{$verified_text}) {
+			# Found tag for manual OK
+			$borderstyle = '<y:BorderStyle color="#00cc00" type="line" width="2.0"/>';
+		}
+	} else {
+		# Change to 
+		$fill = '<y:Fill hasColor="false" transparent="false"/>';
+		$borderstyle = '<y:BorderStyle color="#888888" type="dashed" width="1.0"/>';
+		$nodelabel = '<y:NodeLabel alignment="center" textColor="#888888" visible="true">'.$text.'</y:NodeLabel>';
+		if ($text =~ /_(_|\()Ignored(_|\()$/i) {
+			return('') if ($CFG_HIDE_IGNORED_NODES);
+			$borderstyle = '<y:BorderStyle color="#cc0000" type="dashed" width="2.0"/>';
+		}
+	}
+
+	my($eventroutine, $eventaction, $eventtaskn);
+	foreach (@EVENT_ROUTINE_LIST) {
+		($eventroutine, $eventaction, $eventtaskn) = split(/;/, $_);
+		if ((lc($eventroutine) eq lc($decl_name)) && ($eventtaskn eq $decl_task)) {
+			# Event routine so different style
+			$fill = '<y:Fill color="#DDFFDD" color2="#FFFFFF" transparent="false"/>';
+			$borderstyle = '<y:BorderStyle color="#000000" type="line" width="1.0"/>';
+			$nodelabel = '<y:NodeLabel alignment="center" textColor="#000000" visible="true">'.$text."\n".'Event: '.$eventaction.'</y:NodeLabel>';
+			last;
+		}
+	}
+
+	my($res) = <<END;
+	<!-- NODE
+$text
+	-->
+    <node id="n$id">
+      <data key="d6">
+        <y:ShapeNode>
+          <y:Geometry height="30.0" width="250.0"/>
+          $fill
+          $borderstyle
+          $nodelabel
+          <y:Shape type="rectangle"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+	
+END
+
+	return($res);
+}
+
+
+
+sub NodeGraphmlFunc {
+	my($id,$text,$verified_text) = @_;
+
+	$text =~ s/[^a-z0-9_\.\/\s]/_/gi;
+
+	my($nodelabel) = '<y:NodeLabel alignment="center" textColor="#000000" visible="true">'.$text.'</y:NodeLabel>';
+	my($borderstyle) = '<y:BorderStyle color="#000000" type="line" width="1.0"/>';
+	my($fill) = '<y:Fill color="#FFCC99" color2="#FFFFFF" transparent="false"/>';
+
+	if (!($UNUSED_ROUTINES{$id})) {
+		# Keep values
+		if ($VERIFIED_ROUTINES{$verified_text}) {
+			# Found tag for manual OK
+			$borderstyle = '<y:BorderStyle color="#00cc00" type="line" width="2.0"/>';
+		}
+	} else {
+		# Change to 
+		$fill = '<y:Fill hasColor="false" transparent="false"/>';
+		$borderstyle = '<y:BorderStyle color="#888888" type="dashed" width="1.0"/>';
+		$nodelabel = '<y:NodeLabel alignment="center" textColor="#888888" visible="true">'.$text.'</y:NodeLabel>';
+		if ($text =~ /_(_|\()Ignored(_|\()$/i) {
+			return('') if ($CFG_HIDE_IGNORED_NODES);
+			$borderstyle = '<y:BorderStyle color="#cc0000" type="dashed" width="2.0"/>';
+		}
+	}
+
+	my($res) = <<END;
+	<!-- NODE
+$text
+	-->
+    <node id="n$id">
+      <data key="d6">
+        <y:ShapeNode>
+          <y:Geometry height="30.0" width="250.0"/>
+          $fill
+          $borderstyle
+          $nodelabel
+          <y:Shape type="rectangle"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+	
+END
+
+	return($res);
+}
+
+
+
+sub NodeGraphmlTrap {
+	my($id,$text,$verified_text) = @_;
+
+	$text =~ s/[^a-z0-9_\.\/\s]/_/gi;
+
+	my($nodelabel) = '<y:NodeLabel alignment="center" textColor="#000000" visible="true">'.$text.'</y:NodeLabel>';
+	my($borderstyle) = '<y:BorderStyle color="#000000" type="line" width="1.0"/>';
+	my($fill) = '<y:Fill color="#FF9999" color2="#FFFFFF" transparent="false"/>';
+
+	if (!($UNUSED_ROUTINES{$id})) {
+		# Keep values
+		if ($VERIFIED_ROUTINES{$verified_text}) {
+			# Found tag for manual OK
+			$borderstyle = '<y:BorderStyle color="#00cc00" type="line" width="2.0"/>';
+		}
+	} else {
+		# Change to 
+		$fill = '<y:Fill hasColor="false" transparent="false"/>';
+		$borderstyle = '<y:BorderStyle color="#888888" type="dashed" width="1.0"/>';
+		$nodelabel = '<y:NodeLabel alignment="center" textColor="#888888" visible="true">'.$text.'</y:NodeLabel>';
+		if ($text =~ /_(_|\()Ignored(_|\()$/i) {
+			return('') if ($CFG_HIDE_IGNORED_NODES);
+			$borderstyle = '<y:BorderStyle color="#cc0000" type="dashed" width="2.0"/>';
+		}
+	}
+
+	my($res) = <<END;
+	<!-- NODE
+$text
+	-->
+    <node id="n$id">
+      <data key="d6">
+        <y:ShapeNode>
+          <y:Geometry height="30.0" width="250.0"/>
+          $fill
+          $borderstyle
+          $nodelabel
+          <y:Shape type="parallelogram"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+	
+END
+
+	return($res);
+}
+
+
 
 sub NodeGraphmlEdge {
 	my($id,$from,$to) = @_;
+	
+	my($rgb_r) = 0;
+	my($rgb_g) = 0;
+	my($rgb_b) = 0;
+	while ((($rgb_r+$rgb_g+$rgb_b)>400) || (($rgb_r < 190) && ($rgb_g < 190) && ($rgb_b < 190))) {
+		$rgb_r = int(rand(255));
+		$rgb_g = int(rand(255));
+		$rgb_b = int(rand(255));
+	}
+	
+	my($color) = '#'.sprintf("%02X", $rgb_r).sprintf("%02X", $rgb_g).sprintf("%02X", $rgb_b);
 
-	my($text) = <<END;
+	my($res) = <<END;
     <edge id="e$id" source="n$from" target="n$to">
-      <data key="d8" xml:space="preserve"/>
       <data key="d10">
         <y:PolyLineEdge>
-          <y:Path sx="0.0" sy="0.0" tx="0.0" ty="0.0"/>
-          <y:LineStyle color="#000000" type="line" width="1.0"/>
+          <y:LineStyle color="$color" type="line" width="1.0"/>
           <y:Arrows source="none" target="standard"/>
-          <y:EdgeLabel alignment="center" configuration="AutoFlippingLabel" distance="2.0" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" hasText="false" height="4.0" horizontalTextPosition="center" iconTextGap="4" modelName="custom" preferredPlacement="anywhere" ratio="0.5" textColor="#000000" verticalTextPosition="bottom" visible="true" width="4.0" x="145.70617097973764" y="10.524897219965284">
-            <y:LabelModel>
-              <y:SmartEdgeLabelModel autoRotationEnabled="false" defaultAngle="0.0" defaultDistance="10.0"/>
-            </y:LabelModel>
-            <y:ModelParameter>
-              <y:SmartEdgeLabelModelParameter angle="0.0" distance="30.0" distanceToCenter="true" position="right" ratio="0.5" segment="0"/>
-            </y:ModelParameter>
-            <y:PreferredPlacementDescriptor angle="0.0" angleOffsetOnRightSide="0" angleReference="absolute" angleRotationOnRightSide="co" distance="-1.0" frozen="true" placement="anywhere" side="anywhere" sideReference="relative_to_edge_flow"/>
-          </y:EdgeLabel>
           <y:BendStyle smoothed="true"/>
         </y:PolyLineEdge>
       </data>
     </edge>
+	
 END
 
-	return($text);
+	return($res);
 }
 
-sub remove_duplicates() {
-	my($i) = 0;
-	my($j);
-	print '-Removing duplicate routine calls...'."\n";
-	while ($i < $#TASK_CALLS) {
-		$j = $i+1;
-		while ($j <= $#TASK_CALLS) {
-			if (($TASK_CALLS[$i][0] eq $TASK_CALLS[$j][0])
-				&& ($TASK_CALLS[$i][1] eq $TASK_CALLS[$j][1])
-				&& ($TASK_CALLS[$i][2] eq $TASK_CALLS[$j][2])
-				&& ($TASK_CALLS[$i][3] eq $TASK_CALLS[$j][3])) {
-				# Identical, splice $j entry
-				
-				splice(@TASK_CALLS,$j,1);
-			} else {
-				$j++;
-			}			
-		}
-		$i++;
-	}
-}
 
-sub FileReadLine {
-	my($HANDLE,$alt) = @_;
-	my($line);
 
-	if ($alt) {
-		$line = $alt;
-	} elsif ($line = <$HANDLE>) {
-		$FILELINE++;
-	} else {
-		return '';
-	}
+sub CheckEdgeConnected {
+	my($id) = @_;
+	my($from,$to);
+
+	foreach $i (0..$#CONNECTIONS) {
+		($from,$to) = split(/;/,$CONNECTIONS[$i]);
 		
-	# Clear trailing comments
-	$line =~ s/(.*?(\".*?;.*?\")*.*?;)(.*?!.*)/$1/;
-	# Clear prefix or suffix junk
-	$line =~ s/(^[\s\t]*|[\s\t\n\r]*$)//gi;
-	# Clear all double spaces
-	$line =~ s/\s\s/\s/g;
-	# Empty line? Just read the next one
-	if ($line =~ /^[\s\t\n\r]*$/i) {
-		return(FileReadLine($HANDLE));
-	}
-	# Comment? Read the next one
-	if ($line =~ /^[\s\t]*\!/i) {
-		return(FileReadLine($HANDLE));
-	}
-	
-	# If multiline stitch together
-	if ($line =~ /^[\s\t]*(MODULE|ENDMODULE|ENDPROC|ENDFUNC|ENDTRAP|RECORD|ENDRECORD|ENDIF|ENDWHILE|ENDFOR|(LOCAL\s)?TRAP|ERROR|ENDTEST|ELSE)/i) {
-		# Not multiline
-	} elsif ($line =~ /^[\s\t]*((LOCAL\s)?PROC|(LOCAL\s)?FUNC)/i) {
-		# Should end with ')'
-		if ($line !~ /\)$/i) {
-			$line .= FileReadLine($HANDLE);
-		}
-	} elsif ($line =~ /^(CASE|DEFAULT)/i) {
-		# Should end with ':'
-		if ($line !~ /\:$/) {
-			$line .= FileReadLine($HANDLE);
-		}
-	} elsif ($line =~ /^(WHILE|FOR)/i) {
-		# Should end with 'DO'
-		if ($line !~ /DO$/i) {
-			$line .= FileReadLine($HANDLE);
-		}
-	} elsif ($line =~ /^IF/i) {
-		# Should end with 'THEN' OR ';'
-		if ($line !~ /(THEN|\;)$/i) {
-			$line .= FileReadLine($HANDLE);
-		}
-	} else {
-		# Should end with ';'
-		if ($line !~ /\;$/i) {
-			$line .= FileReadLine($HANDLE);
-		}
-	}
-
-	return($line);	
-}
-
-sub read_taskinfo_calls {
-	my($line,$line2,$line3,$i,$j,$callname);
-	my($PROC_INFO_LOCAL) = '';
-	my($PROC_INFO_TYPE) = '';
-	my($PROC_INFO_NAME) = '';
-	my($calls_i) = 0;
-	my($nextline) = '';
-	my($nextline2) = '';
-	
-	print '-Reading task modules, finding subroutine-calls'."\n";
-	
-	open(LATE,'>LateBinds.log');
-
-	foreach $i (0..$#TASK_INFO) {
-		
-		print '  '.$TASK_INFO[$i][0].'-'.$TASK_INFO[$i][1]."\n";
-		foreach $j (0..$#{$TASK_MODS[$i]}) {
-			print '    '.$TASK_MODS[$i][$j]."\n";
-			open($MOD,'<'.$BAK_FOLDER.'/RAPID/'.$TASK_INFO[$i][0].'/'.$TASK_MODS[$i][$j]) or die('Cant open ['.$BAK_FOLDER.'/RAPID/'.$TASK_INFO[$i][0].'/'.$TASK_MODS[$i][$j].']');
-			$FILELINE = 0;
-			$line = FileReadLine($MOD);
-			while ($line) {
-				
-				$nextline = '';
-				
-				# Start of a routine?
-				if ($line =~ /^((LOCAL)\s+)?(PROC|FUNC\s+[\w\d_]+|TRAP)\s+([\w\d_]+)/i) {
-					$PROC_INFO_LOCAL = $2;
-					$PROC_INFO_TYPE = $3;
-					$PROC_INFO_NAME = $4;
-
-				# End of a routine
-				} elsif ($line =~ /^(ENDPROC|ENDFUNC|ENDTRAP|ERROR|UNDO)/i) {
-					$PROC_INFO_LOCAL = '';
-					$PROC_INFO_TYPE = '';
-					$PROC_INFO_NAME = '';
-
-				# In a routine?
-				} elsif ($PROC_INFO_NAME) {
-					
-					# Remove any COMPACT IF
-					if ($line =~ /^IF\s/i) {
-						if ($line =~ /THEN$/i) {
-						} else {
-						
-							$line =~ s/\s*([\,\+\-\=\:\\\/\*])\s*/$1/g;
-
-							# Backtrack from string-end until we find space-char outside parenthesis brackets and outside string-brackets
-							$location_var = length($line);
-							$parenthesis = 0;
-							$string_ = 0;
-							while ($location_var>0) {
-								if ($string_ == 1) {
-									if (substr($line,($location_var),1) eq '"') {
-										$string_=0;
-									}
-									$location_var--;
-								} else {
-									if (substr($line,($location_var),1) eq '"') {
-										$string_=1;
-										$location_var--;
-									} elsif (substr($line,($location_var),1) eq ')') {
-										$parenthesis++;
-										$location_var--;
-									} elsif (substr($line,($location_var),1) eq '(') {
-										$parenthesis--;
-										$location_var--;
-									} else {
-										if (($parenthesis <= 0) && (substr($line,($location_var-1),2) =~ /\s\w/)) {
-											last;
-										}
-										$location_var--;
-									}
-								}
-							}
-							# This MAY be correct, but the true instruction may also be earlier, so we look for \s[\w\d]+\s
-							$location_var2 = $location_var-2;
-							while ($location_var2>0) {
-								if (substr($line,($location_var2),1) =~ /[\w\d]/) {
-									# All ok
-								} else {
-									# Not instruction, break loop and we keep $location_var
-									last;
-								}
-								if (substr($line,($location_var2-1),2) =~ /\s\w/) {
-									# True instruction, update $location_var and break loop
-									$location_var = $location_var2;
-									last;
-								}
-								$location_var2--;
-							}
-							if ($location_var2 == 0) {
-								$location_var = $location_var2;
-							}
-							$line = substr($line,$location_var,length($line)-$location_var);
-						
-						}					
-					}
-					
-
-					# Routine Call Late binding
-					if ($line =~ /^\%(.+)\%/) {
-						$call_var = $1;
-						
-						$nextline = <$MOD>;
-						if ($call_var =~ /^"([^"]*)"$/) {
-
-							#print '[Looks like pure string]'."\n";
-							# TASKn
-							$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-							# Module
-							$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-							# Routine from
-							$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-							# Routine name
-							$call_var =~ s/(^"|"$)//g;
-							$TASK_CALLS[$calls_i][3] = $call_var;
-							
-							print '      Late binding: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-							print LATE 'Line '.$FILELINE.':'.$TASK_CALLS[$calls_i][0].'/'.$TASK_CALLS[$calls_i][1]."\n";
-							$calls_i++;
-							
-						} else {
-
-							print '[Probably VAR dependency]'."\n";
-
-							if ($nextline =~ /!\s*Rapid2Graph\s*\[(.*)\]/) {
-								$nextline2 = $1;
-								$nextline2 =~ s/\s//g;
-								foreach $latecall (split(/,/,$nextline2)) {
-									# TASKn
-									$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-									# Module
-									$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-									# Routine from
-									$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-									# Routine name
-									$TASK_CALLS[$calls_i][3] = $latecall;
-									print '      Late binding: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-									$calls_i++;
-								}
-								
-							} else {
-								#print '[No match on comment]'."\n";
-								# TASKn
-								$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-								# Module
-								$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-								# Routine from
-								$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-								# Routine name
-								$TASK_CALLS[$calls_i][3] = '[string '.$1.']';
-								
-								print '      Late binding: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-								print LATE 'Line '.$FILELINE.':'.$TASK_CALLS[$calls_i][0].'/'.$TASK_CALLS[$calls_i][1]."\n";
-								$calls_i++;
-							}							
-
-						}
-						
-					# Routine CallByVar
-					} elsif ($line =~ /^CallByVar\s+([\w\d_\"+]+\s*,\s*\s*[\w\d_]+)/i) {
-						$call_var = $1;
-						$call_var =~ s/\s//g;
-
-						$nextline = <$MOD>;
-						
-						if ($nextline =~ /!\s*Rapid2Graph\s*\[(.*)\]/) {
-							$nextline2 = $1;
-							$nextline2 =~ s/\s//g;
-							foreach $latecall (split(/,/,$nextline2)) {
-								# TASKn
-								$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-								# Module
-								$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-								# Routine from
-								$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-								# Routine name
-								$TASK_CALLS[$calls_i][3] = $latecall;
-								print '      CallByVar: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-								$calls_i++;
-							}
-						} else {
-							# TASKn
-							$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-							# Module
-							$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-							# Routine from
-							$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-							# Routine name
-							$TASK_CALLS[$calls_i][3] = '[string '.$call_var.']';
-							print '      CallByVar: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-							print LATE 'Line '.$FILELINE.':'.$TASK_CALLS[$calls_i][0].'/'.$TASK_CALLS[$calls_i][1]."\n";
-							$calls_i++;
-						}
-
-					# Routine MoveJ/LSync
-					} elsif ($line =~ /^Move(J|L)Sync.*?([\w\d_\"]+)\s*;$/i) {
-						$call_var = $2;
-						
-						if ($call_var =~ /^"(.*?".*)"$/) {
-							
-							# TASKn
-							$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-							# Module
-							$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-							# Routine from
-							$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-							# Routine name
-							$TASK_CALLS[$calls_i][3] = $call_var;
-							
-							print '      MoveXSync: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-							$calls_i++;
-
-						} else {
-							# TASKn
-							$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-							# Module
-							$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-							# Routine from
-							$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-							# Routine name
-							$call_var =~ s/(^"|"$)//g;
-							$TASK_CALLS[$calls_i][3] = $call_var;
-							print '      MoveXSync: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-							$calls_i++;
-
-						}
-
-					# Interrupt
-					} elsif ($line =~ /^CONNECT.*?([\w\d_]+)\s*;$/i) {
-						# TASKn
-						$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-						# Module
-						$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-						# Routine from
-						$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-						# Routine name
-						$TASK_CALLS[$calls_i][3] = $1;
-						print '      TRAP: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-						$calls_i++;
-					
-					}
-
-					# Function-call, separate IF, since it can trigger even though something else triggers
-					if ($line =~ /(([\w\d_]+)\s*\()/i) {
-						
-						# Remove strings, to be sure no callregexps are triggered.
-						$line =~ s/"[^"]*"/""/g;
-						
-						while ($line =~ /(([\w\d_]+)\s*\()/i) {
-
-							$callname = $2;
-							$func_to_be_removed = $1;
-							
-							if (CallInScope($TASK_INFO[$i][0],$TASK_MODS[$i][$j],$callname)) {
-
-								#print '['.$line.']['.$callname.']['.$func_to_be_removed.']'."\n";
-
-								# TASKn
-								$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-								# Module
-								$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-								# Routine from
-								$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-								# Routine name
-								$TASK_CALLS[$calls_i][3] = $callname;
-								print '      FUNC: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-								$calls_i++;
-							}							
-							
-							# Remove entry and retry, so all functioncalls are picked up
-							$line =~ s/\Q$func_to_be_removed\E/DummyFunc/gi;
-						}
-						
-					}
-
-					# Once everything else has been checked, we can see if its a regular routine-call
-					if ($line =~ /(^[\w\d]+)\s?(\:\=)?/i) {
-						$callname = $1;
-						$temp = $2;
-						if ($temp eq ':=') {
-							# Variable setting, nop
-						} else {
-							if (CallInScope($TASK_INFO[$i][0],$TASK_MODS[$i][$j],$callname)) {
-								# TASKn
-								$TASK_CALLS[$calls_i][0] = $TASK_INFO[$i][0];
-								# Module
-								$TASK_CALLS[$calls_i][1] = $TASK_MODS[$i][$j];
-								# Routine from
-								$TASK_CALLS[$calls_i][2] = $PROC_INFO_NAME;
-								# Routine name
-								$TASK_CALLS[$calls_i][3] = $callname;
-								print '      PROC: '.$TASK_CALLS[$calls_i][0].','.$TASK_CALLS[$calls_i][1].','.$TASK_CALLS[$calls_i][2],',',$TASK_CALLS[$calls_i][3]."\n";
-								$calls_i++;
-							}
-						}
-					}
-
-				}
-				
-				if ($nextline ne '') {
-					$line = FileReadLine($MOD,$nextline);
-				} else {
-					$line = FileReadLine($MOD);
-				}
-			}
-			close($MOD);
+		if (($from == $id) || ($to == $id)) {
+			return 1;
 		}
 		
-	}
-	close(LATE);
-}
-
-sub CallInScope {
-	my($task,$module,$routine) = @_;
-	foreach $i (0..$#TASK_ROUTINES) {
-		if (($task eq $TASK_ROUTINES[$i][0]) && ($routine eq $TASK_ROUTINES[$i][2])) {
-			if ($TASK_ROUTINES[$i][4] eq 'LOCAL') {
-				if ($module eq $TASK_ROUTINES[$i][1]) {
-					return 1;
-				} else {
-					return 0;
-				}
-			} else {
-				return 1;
-			}
-		}
 	}
 	return 0;
-}
-
-sub read_taskinfo {
-	my($line,$line2,$line3,$i,$j);
-	my($PROC_INFO_LOCAL) = '';
-	my($PROC_INFO_TYPE) = '';
-	my($PROC_INFO_NAME) = '';
-	my($procs_i) = 0;
-
-	print '-Reading task modules, finding all routines...'."\n";
-
-	foreach $i (0..$#TASK_INFO) {
-		
-		print '  '.$TASK_INFO[$i][0].'-'.$TASK_INFO[$i][1]."\n";
-		foreach $j (0..$#{$TASK_MODS[$i]}) {
-			print '    '.$TASK_MODS[$i][$j]."\n";
-			open($MOD,'<'.$BAK_FOLDER.'/RAPID/'.$TASK_INFO[$i][0].'/'.$TASK_MODS[$i][$j]) or die('Cant open ['.$BAK_FOLDER.'/RAPID/'.$TASK_INFO[$i][0].'/'.$TASK_MODS[$i][$j].']');
-			while ($line = FileReadLine($MOD)) {
-				
-				# Start of a routine?
-				if ($line =~ /^((LOCAL)\s+)?(PROC|FUNC\s+[\w\d_]+|TRAP)\s+([\w\d_æøå]+)/i) {
-					$PROC_INFO_LOCAL = $2;
-					$PROC_INFO_TYPE = $3;
-					$PROC_INFO_NAME = $4;
-					print '      ';
-					if ($PROC_INFO_LOCAL) {
-						print $PROC_INFO_LOCAL.' ';
-					}
-					print $PROC_INFO_TYPE.' '.$PROC_INFO_NAME."\n";
-					
-					# TASKn
-					$TASK_ROUTINES[$procs_i][0] = $TASK_INFO[$i][0];
-					# Module
-					$TASK_ROUTINES[$procs_i][1] = $TASK_MODS[$i][$j];
-					# Routine name
-					$TASK_ROUTINES[$procs_i][2] = $PROC_INFO_NAME;
-					# Routine type
-					$TASK_ROUTINES[$procs_i][3] = $PROC_INFO_TYPE;
-					# Routine local
-					$TASK_ROUTINES[$procs_i][4] = $PROC_INFO_LOCAL;
-					
-					print PROCS $procs_i.', '.$TASK_ROUTINES[$procs_i][2].', '.$TASK_ROUTINES[$procs_i][3].', '.$TASK_ROUTINES[$procs_i][4].', '.$TASK_ROUTINES[$procs_i][1].', '.$TASK_ROUTINES[$procs_i][0]."\n";
-
-					$procs_i++;
-					
-				}
-			}
-			close($MOD);
-			#exit;
-		}
-		
-	}
-	print 'done'."\n";
-}
-
-sub read_bakinfo {
-	
-	# Will read backupinfo into arrays
-	
-	# @BAK_INFO[]
-	# RobotID
-	# Robotware
-	
-	# @TASK_INFO[][]
-	# TaskID,TaskName
-	
-	my($line,$line2,$task_mods_i);
-	my($task_i) = 0;
-	print '-Reading BACKINFO.TXT'."\n";
-	
-	open(BAK,'<'.$BAK_FOLDER.'/BACKINFO/backinfo.txt') or die('Cant open ['.$BAK_FOLDER.'/BACKINFO/backinfo.txt]');
-	while ($line = <BAK>) {
-		chop($line);
-		
-		if ($line =~  /SYSTEM_ID:/) {
-			$line2 = <BAK>;
-			chop($line2);
-			$BAK_INFO[0] = $line2;
-			print '  ROB_ID: '.$BAK_INFO[0]."\n";
-			
-		} elsif ($line =~ /PRODUCTS_ID:/) {
-			$line2 = <BAK>;
-			chop($line2);
-			$BAK_INFO[1] = $line2;
-			print '  ROB_RW: '.$BAK_INFO[1]."\n";
-			
-		} elsif ($line =~ /^\>\>(TASK\d+)\:\s\(([\w\d_]*),/) {
-			# TASKn
-			$TASK_INFO[$task_i][0] = $1;
-			
-			# Name
-			$TASK_INFO[$task_i][1] = $2;
-			
-			print '  '.$TASK_INFO[$task_i][0].'/'.$TASK_INFO[$task_i][1]."\n";
-			
-			# Task-modules
-			$task_mods_i = 0;
-			while ($line2 = <BAK>) {
-
-				if ($line2 =~ /(^[\w\d\/\\\._]+)/) {
-					$TASK_MODS[$task_i][$task_mods_i] = $1;
-					print '    ['.$TASK_MODS[$task_i][$task_mods_i].']'."\n";
-					$task_mods_i++;
-					
-				} else {
-					last;
-					
-				}
-			}
-			
-			$task_i++;
-			
-		}			
-			
-	}
-	close(BAK);	
-}
-
-sub find_most_recent_bak {
-	my($bak_most_recent_time) = 0;
-	my($de,$line);
-	
-	opendir(DIR,'.');
-	foreach $de (readdir(DIR)) {
-		if (-d './'.$de) {
-			if (-e './'.$de.'/BACKINFO/backinfo.txt') {
-				open(FILE,'<./'.$de.'/BACKINFO/backinfo.txt');
-				while ($line = <FILE>) {
-					if ($line =~ /^\#\s+(\d{2,4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/) {
-						$bak_time = timelocal($6,$5,$4,$3,($2 - 1),$1);
-						if ($bak_time > $bak_most_recent_time) {
-							$bak_most_recent_time = $bak_time;
-							$BAK_FOLDER = './'.$de;
-						}
-						last;
-					}
-				}
-				close(FILE);
-			}
-		}
-	}
-	closedir(DIR);
-	
-	if ($bak_most_recent_time <= 0) {
-		print "\n\n".'ERROR, found no valid backup...'."\n\n";
-		sleep(3);
-		exit;
-	}
 	
 }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
+sub FormatTime {
+	my($stime) = @_;
+	my(@timedata) = localtime($stime);
+	my($res) = ($timedata[5] + 1900).'-';
+	if ($timedata[4] < 9) { $res .= '0'; }
+	$res .= ($timedata[4] + 1).'-';
+	if ($timedata[3] < 10) { $res .= '0'; }
+	$res .= $timedata[3].' ';
+	if ($timedata[2] < 10) { $res .= '0'; }
+	$res .= $timedata[2].':';
+	if ($timedata[1] < 10) { $res .= '0'; }
+	$res .= $timedata[1].':';
+	if ($timedata[0] < 10) { $res .= '0'; }
+	$res .= $timedata[0];
+	return $res;
+}
 
 
