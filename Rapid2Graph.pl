@@ -127,8 +127,22 @@ print "\n";
 
 
 
+# Find declared functions/procedures/traps.
+# @DECL_ROUTINES
+#   Elements: '<TASKn>;<Path/Filename>;<Full declaration>;<Scope>;<Type>;<Name>'
+#     <TASKn>: Example 'TASK1'
+#     <Path/Filename>: Example '/RAPID/TASK1/PROGMOD/MainModule.mod'
+#     <Full declaration>: Example 'LOCAL PROC Init'
+#     <Scope>: None or LOCAL or TASK. Example 'LOCAL'
+#     <Type>: PROC or TRAP or FUNC
+#     <Name>: Example 'Init'
 our(@DECL_ROUTINES) = BackupFindDeclRoutines($BACKUP_FOLDER, @PROG_MODULES);
 # %VERIFIED_ROUTINES does nothing, but will tag all routines containing /^!\s*Verified/. These will be outlined in the final graph as OK.
+# %VERIFIED_ROUTINES
+#   Elements: $VERIFIED_ROUTINES{<TASKn> . '/' . <Path/Filename> . '/' . <Full declaration>} = 1
+#     <TASKn>: Example 'TASK1'
+#     <Path/Filename>: Example '/RAPID/TASK1/PROGMOD/MainModule.mod
+#     <Full declaration>: Example 'LOCAL PROC Init'
 our(%VERIFIED_ROUTINES) = ();
 print 'Found procedures:' . "\n";
 foreach my $i (0..$#DECL_ROUTINES) {
@@ -138,10 +152,23 @@ print "\n";
 
 
 
-our(@CHK_ROUTINES);
+# @CONNECTIONS
+#   Elements: '<Routine from>;<Routine to>'
+#     <Routine from>: Routine containing the procedure call, defined by array index to @DECL_ROUTINES . Example '2'
+#     <Routine to>: index pointing to @DECL_ROUTINES. Example '7'
 our(@CONNECTIONS);
+# @WARNING_LATEBINDING
+#   Elements: '<Path/Filename>/<Name>'
+#     <Path/Filename>: Program module as defined in @DECL_ROUTINES .
+#     <Name>: Routine name as defined in @DECL_ROUTINES .
 our(@WARNING_LATEBINDING);
+# %PROCESSED_ROUTINES
+#   Elements: $PROCESSED_ROUTINES{<@DECL_ROUTINES-index>} = 1
+#     <@DECL_ROUTINES-index>: Index pointing to a trap/procedure/function in @DECL_ROUTINE array. Example '23'
 our(%PROCESSED_ROUTINES);
+# %UNUSED_ROUTINES
+#   Elements: $PROCESSED_ROUTINES{<@DECL_ROUTINES-index>} = 1
+#     <@DECL_ROUTINES-index>: Index pointing to a trap/procedure/function in @DECL_ROUTINE array. Example '23'
 our(%UNUSED_ROUTINES);
 print 'Reading routines...' . "\n";
 BackupFindRoutineCalls($BACKUP_FOLDER);
@@ -223,7 +250,7 @@ sub BackupFindRoutineCalls {
 		my($task, $task_name, $task_entry) = split(/;/, $TASK_LIST[$i]);
 		foreach my $j (0..$#DECL_ROUTINES) {
 			my($list_task, $decl_file, $decl_all, $decl_local, $decl_type, $decl_name) = split(/;/, $DECL_ROUTINES[$j]);
-			Add_Connections($folder,$j) if (($task eq $list_task) && (lc($task_entry) eq lc($decl_name)) && ($decl_local eq '') && (uc($decl_type) eq 'PROC'));
+			Add_Connections($folder, $j) if (($task eq $list_task) && (lc($task_entry) eq lc($decl_name)) && ($decl_local eq '') && (uc($decl_type) eq 'PROC'));
 		}
 	}
 	
@@ -339,7 +366,7 @@ sub Add_Connections {
         $to_task eq $from_task && $to_file eq $from_file &&
 		$procedure_data =~ /([^\w\d_]|^)\Q$to_name\E[^\w\d_]/mi &&
 		($local_matches{$to_name} = 1) &&
-		(push(@CONNECTIONS, "$i;$_"), Add_Connections($folder, $_));
+		(push(@CONNECTIONS, $i . ';' . $_), Add_Connections($folder, $_));
     } (0..$#DECL_ROUTINES);
 
     # If no local matches, search for global matches
@@ -349,7 +376,7 @@ sub Add_Connections {
 		(!$to_local || $to_file eq $from_file) &&
 		!defined($local_matches{$to_name}) &&
 		$procedure_data =~ /([^\w\d_]|^)\Q$to_name\E[^\w\d_]/mi &&
-		(push(@CONNECTIONS, "$i;$_"), Add_Connections($folder, $_));
+		(push(@CONNECTIONS, $i . ';' . $_), Add_Connections($folder, $_));
     } (0..$#DECL_ROUTINES);
 	
 	push(@WARNING_LATEBINDING, $from_file . '/' . $from_name) if (($latebinding_found == 1) && ($latebinding_addressed == 0));
