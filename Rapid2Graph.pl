@@ -107,7 +107,16 @@ foreach (@EVENT_ROUTINE_LIST) {
 print "\n";
 
 
-
+# %FILEDATA is a hashed array. When we look for program modules we also read the content
+# of these into %FILEDATA to prevent re-reading alot of files.
+# The contents of these files can be recalled by specifying <path>/<filename> and <linenumber>.
+#   Example for referencing a file as an array: @{$FILEDATA{<path> . <filename>}}
+#   Example for referencing a line in the file: ${$FILEDATA{<path> . <filename>}}[<linenumber>]
+#
+# @PROG_MODULES
+#   Elements: '<TASKn>;<Path/Filename>'
+#     <TASKn>: Example 'TASK1'
+#     <Path/Filename>: Example '/RAPID/TASK1/PROGMOD/MainModule.mod'
 our(%FILEDATA);
 my(@PROG_MODULES) = BackupFindProgModules($BACKUP_FOLDER);
 print 'Found modules:' . "\n";
@@ -279,11 +288,11 @@ sub Add_Connections {
 	my $latebinding_found = 0;
 	my $latebinding_addressed = 0;
 	
-	while ($m <= $#{$FILEDATA{$folder.$from_file}}) {
-		my $line = ${$FILEDATA{$folder.$from_file}}[$m];
+	while ($m <= $#{$FILEDATA{$folder . $from_file}}) {
+		my $line = ${$FILEDATA{$folder . $from_file}}[$m];
 		$m++;
 
-		$VERIFIED_ROUTINES{$from_task.'/'.$from_file.'/'.$from_all} = 1 if ($line =~ /^[\t\s]*!\s*Verified/i);
+		$VERIFIED_ROUTINES{$from_task . '/' . $from_file . '/' . $from_all} = 1 if ($line =~ /^[\t\s]*!\s*Verified/i);
 		$latebinding_found = 1 if (($line =~ /^[\t\s]*\%.+\%.*;/) || ($line =~ /([^\w\d_]|^)CallByVar[^\w\d_]/));
 
 		if ($line =~ /!\s+Rapid2Graph\s+\[(.+)\]/) {
