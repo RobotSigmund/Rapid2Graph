@@ -1,5 +1,29 @@
 #!c:/perl/bin/perl
 
+# MIT License
+#
+# Copyright (c) 2025 Sigmund Straumland
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+
+
 use strict;
 use warnings;
 use Time::Local;
@@ -34,6 +58,7 @@ print 'Most recent backup folder found: ' . $BACKUP_FOLDER . "\n\n";
 
 
 
+# Look for tasks. These are located in the backinfo.txt file.
 # @TASK_LIST:
 #   Elements: '<TASKn>;<TaskName>'
 #     <TASKn>: String 'TASK' followed by tasknr digit(s)
@@ -438,28 +463,28 @@ sub BackupFindProgModules {
 		my($list_task, $list_task_name, $list_task_entry) = split(/;/, $TASK_LIST[$i]);
 		opendir(my $DIR1, $folder . '/RAPID/' . $list_task . '/PROGMOD');
 		foreach my $de (readdir($DIR1)) {
-			if ($de =~ /\.mod(x?)/i) {
-				push(@prog_modules, $list_task . ';/RAPID/' . $list_task . '/PROGMOD/' . $de);
-				
-				open(my $FILE, '<' . $folder . '/RAPID/' . $list_task . '/PROGMOD/' . $de);
-				while (my $line = <$FILE>) {
-					push(@{$FILEDATA{$folder . '/RAPID/' . $list_task . '/PROGMOD/' . $de}}, $line);
-				}
-				close($FILE);
+			next unless ($de =~ /\.mod(x?)/i);
+			
+			push(@prog_modules, $list_task . ';/RAPID/' . $list_task . '/PROGMOD/' . $de);
+			
+			open(my $FILE, '<' . $folder . '/RAPID/' . $list_task . '/PROGMOD/' . $de);
+			while (my $line = <$FILE>) {
+				push(@{$FILEDATA{$folder . '/RAPID/' . $list_task . '/PROGMOD/' . $de}}, $line);
 			}
+			close($FILE);
 		}
 		closedir($DIR1);
 		opendir(my $DIR2, $folder . '/RAPID/' . $list_task . '/SYSMOD');
 		foreach my $de (readdir($DIR2)) {
-			if ($de =~ /\.sys(x?)/i) {
-				push(@prog_modules, $list_task . ';/RAPID/' . $list_task . '/SYSMOD/' . $de);
+			next unless ($de =~ /\.sys(x?)/i);
+			
+			push(@prog_modules, $list_task . ';/RAPID/' . $list_task . '/SYSMOD/' . $de);
 
-				open(my $FILE, '<' . $folder . '/RAPID/' . $list_task . '/SYSMOD/' . $de);
-				while (my $line = <$FILE>) {
-					push(@{$FILEDATA{$folder . '/RAPID/' . $list_task . '/SYSMOD/' . $de}}, $line);
-				}
-				close($FILE);
+			open(my $FILE, '<' . $folder . '/RAPID/' . $list_task . '/SYSMOD/' . $de);
+			while (my $line = <$FILE>) {
+				push(@{$FILEDATA{$folder . '/RAPID/' . $list_task . '/SYSMOD/' . $de}}, $line);
 			}
+			close($FILE);
 		}
 		closedir($DIR2);
 	}
@@ -489,15 +514,15 @@ sub BackupFindTaskEntryPoints {
 			$line .= <$FILE>;
 			chop($line);
 		}
-		if ($line =~ /-Name\s+"([\w\d_]+)".*-Entry\s+"([\w\d_]+)"/) {
-			my $task_name = $1;
-			my $task_entry = $2;
-			foreach my $i (0..$#TASK_LIST) {
-				my($list_task, $list_task_name) = split(/;/, $TASK_LIST[$i]);
-				if ($task_name eq $list_task_name) {
-					$TASK_LIST[$i] = $list_task . ';' . $list_task_name . ';' . $task_entry;
-					last;
-				}
+		next unless ($line =~ /-Name\s+"([\w\d_]+)".*-Entry\s+"([\w\d_]+)"/);
+		
+		my $task_name = $1;
+		my $task_entry = $2;
+		foreach my $i (0..$#TASK_LIST) {
+			my($list_task, $list_task_name) = split(/;/, $TASK_LIST[$i]);
+			if ($task_name eq $list_task_name) {
+				$TASK_LIST[$i] = $list_task . ';' . $list_task_name . ';' . $task_entry;
+				last;
 			}
 		}
 	}
@@ -523,20 +548,20 @@ sub BackupFindEventRoutines {
 			$line .= <$FILE>;
 			chop($line);
 		}
-		if ($line =~ /-Routine\s+"([\w\d_]+)".*-Shelf\s+"([\w\d_]+)".*-Task\s+"([\w\d_]+)"(\s+-AllTask)?/) {
-			my $event_alltask = '';
-			my $event_routine = $1;
-			my $event_action = $2;
-			my $event_task = $3;
-			if (defined($4)) {
-				$event_alltask = 'ALL';
-				foreach (@TASK_LIST) {
-					my($taskn, $taskname) = split(/;/, $_);
-					push(@EVENT_ROUTINE_LIST, $event_routine.';'.$event_action.';'.$taskname);
-				}
-			} else {
-				push(@EVENT_ROUTINE_LIST, $event_routine.';'.$event_action.';'.$event_task);
+		next unless ($line =~ /-Routine\s+"([\w\d_]+)".*-Shelf\s+"([\w\d_]+)".*-Task\s+"([\w\d_]+)"(\s+-AllTask)?/);
+
+		my $event_alltask = '';
+		my $event_routine = $1;
+		my $event_action = $2;
+		my $event_task = $3;
+		if (defined($4)) {
+			$event_alltask = 'ALL';
+			foreach (@TASK_LIST) {
+				my($taskn, $taskname) = split(/;/, $_);
+				push(@EVENT_ROUTINE_LIST, $event_routine.';'.$event_action.';'.$taskname);
 			}
+		} else {
+			push(@EVENT_ROUTINE_LIST, $event_routine.';'.$event_action.';'.$event_task);
 		}
 	}
 	close($FILE);
@@ -550,13 +575,6 @@ sub BackupFindTaskList {
 	my(@list) = ();
 	open(my $FILE, '<' . $folder . '/BACKINFO/backinfo.txt');
 	while (my $line = <$FILE>) {
-
-		# Old syntax
-		# >>TASK0: (MAIN)
-		
-		# New syntax
-		# >>TASK0: (MAIN,<name>)
-
 		push(@list, $1 . ';' . $2) if ($line =~ />>(TASK\d+):\s\(([\w\d_]+)/);
 	}
 	close($FILE);
@@ -573,36 +591,35 @@ sub BackupFindMostRecent {
 	
 	opendir(my $DIR, '.');
 	foreach my $de (readdir($DIR)) {
-		if (-d ($folder . '/' . $de)) {
-			if (-e $folder . '/' . $de . '/BACKINFO/backinfo.txt') {
-				my $current_time = 0;
-				my $current_id = 0;
-				my $products_id = 0;
-				open(my $FILE, '<' . $folder . '/' . $de . '/BACKINFO/backinfo.txt');
-				while (my $line = <$FILE>) {
-					if ($line =~ /(\d\d|\d\d\d\d)-(\d\d)-(\d\d)\s+(\d\d):(\d\d):(\d\d)/) {
-						$current_time = timelocal($6, $5, $4, $3, ($2 - 1), $1);
-					} elsif ($line =~ /^>>SYSTEM_ID:/) {
-						$current_id = <$FILE>;
-						chop($current_id);
-					} elsif ($line =~ /^>>PRODUCTS_ID:/) {
-						$products_id = <$FILE>;
-						chop($products_id);
-					}
-					last if ($current_time && $current_id && $products_id);
-				}
-				close($FILE);
-				print '    ' . $folder . '/' . $de . ' ' . $current_time;
-				if ($current_time > $BACKUP_TIME) {
-					$BACKUP_TIME = $current_time;
-					$BACKUP_ID = $current_id;
-					$BACKUP_RW = $products_id;
-					$backupfolder_latest = $folder . '/' . $de;
-					print ' *';
-				}
-				print "\n";
+		next unless (-d ($folder . '/' . $de));
+		next unless (-e $folder . '/' . $de . '/BACKINFO/backinfo.txt');
+
+		my $current_time = 0;
+		my $current_id = 0;
+		my $products_id = 0;
+		open(my $FILE, '<' . $folder . '/' . $de . '/BACKINFO/backinfo.txt');
+		while (my $line = <$FILE>) {
+			if ($line =~ /(\d\d|\d\d\d\d)-(\d\d)-(\d\d)\s+(\d\d):(\d\d):(\d\d)/) {
+				$current_time = timelocal($6, $5, $4, $3, ($2 - 1), $1);
+			} elsif ($line =~ /^>>SYSTEM_ID:/) {
+				$current_id = <$FILE>;
+				chop($current_id);
+			} elsif ($line =~ /^>>PRODUCTS_ID:/) {
+				$products_id = <$FILE>;
+				chop($products_id);
 			}
+			last if ($current_time && $current_id && $products_id);
 		}
+		close($FILE);
+		print '    ' . $folder . '/' . $de . ' ' . $current_time;
+		if ($current_time > $BACKUP_TIME) {
+			$BACKUP_TIME = $current_time;
+			$BACKUP_ID = $current_id;
+			$BACKUP_RW = $products_id;
+			$backupfolder_latest = $folder . '/' . $de;
+			print ' *';
+		}
+		print "\n";
 	}
 	closedir($DIR);
 	
@@ -614,7 +631,7 @@ sub BackupFindMostRecent {
 
 
 
-##### For generating graphml filefield
+##### For generating graphml file
 
 
 
