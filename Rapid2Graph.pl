@@ -32,7 +32,7 @@ use Win32;
 
 
 our $APP_NAME = 'Rapid2Graph';
-our $APP_REV = 'rev2025-03-01';
+our $APP_REV = 'rev2025-03-02';
 our $APP_AUTH = 'Sigmund Straumland';
 our $APP_USER = Win32::LoginName() || "Unknown";
 our $APP_USER_MACHINE = Win32::NodeName() || "Unknown";
@@ -228,7 +228,13 @@ exit;
 
 
 sub RemoveDuplicateEdges {
+	# @CONNECTIONS contains references for all procedure calls made from one procedure to another.
+	# Format is a csv string. Example '23;12' Numbers point to @DECL_ROUTINES indexes.
+	
+	# Print current array size
 	print '  Size:' . $#CONNECTIONS . "\n";
+	
+	# Loop through array and remove duplicates
 	my $i = 0;
 	while ($i < $#CONNECTIONS) {
 		my $j = $i + 1;
@@ -237,6 +243,8 @@ sub RemoveDuplicateEdges {
 		}
 		$i++;
 	}
+	
+	# Print new size
 	print '  New size:' . $#CONNECTIONS . "\n";
 }
 
@@ -244,6 +252,10 @@ sub RemoveDuplicateEdges {
 
 sub BackupFindRoutineCalls {
 	my($folder) = @_;
+	
+	# Here we loop through all declared procedures. All entry points (for example 'Main()') will call
+	# Add_Connections() which will look for procedure calls to other routines. These will be stored into
+	# @CONNECTIONS and will recursively call Add_Connections() to create the whole execution tree.
 
 	# Start with Main() (or task entry point)
 	foreach my $i (0..$#TASK_LIST) {
@@ -253,6 +265,8 @@ sub BackupFindRoutineCalls {
 			Add_Connections($folder, $j) if (($task eq $list_task) && (lc($task_entry) eq lc($decl_name)) && ($decl_local eq '') && (uc($decl_type) eq 'PROC'));
 		}
 	}
+	
+	# Next we do the same for all event routines.
 	
 	# Also perform a "start" with all defined event-routines.
 	foreach (@EVENT_ROUTINE_LIST) {
@@ -270,7 +284,9 @@ sub BackupFindRoutineCalls {
 		}
 	}
 	
-	# Unused routines will also be traversed.
+	# Unused routines will also be traversed. They will be tagged as unused and "greyed" out in the resulting
+	# graph. When tagged, we will loop through all of these aswell and generate connections for them.
+	
 	# $PROCESSED_ROUTINES{$key} = $value : [$keys=index-@DECL_ROUTINES, $value=1]
 	# @DECL_ROUTINES : <$from_task,$from_file,$from_all,$from_local,$from_type,$from_name>
 	# First iteration tags all unused routines, we then process these and preserve the tags for
@@ -392,8 +408,8 @@ sub CheckConnectionMatch {
 	
 	# Remote ProCall to LOCAL declared?
 	if ($text =~ /([\w\d_\.]+)\:([\w\d_]+)/) {
-		my($remote_module) = $1;
-		my($remote_procedure) = $2;
+		my $remote_module = $1;
+		my $remote_procedure = $2;
 		
 		my(@remote_matches) = grep {
 			my($to_task, $to_file, $to_all, $to_local, $to_type, $to_name) = split(/;/, $DECL_ROUTINES[$_]);
@@ -497,6 +513,7 @@ sub BackupFindProgModules {
 	
 	foreach my $i (0..$#TASK_LIST) {
 		my($list_task, $list_task_name, $list_task_entry) = split(/;/, $TASK_LIST[$i]);
+		
 		opendir(my $DIR1, $folder . '/RAPID/' . $list_task . '/PROGMOD');
 		foreach my $de (readdir($DIR1)) {
 			next unless ($de =~ /\.mod(x?)/i);
@@ -510,6 +527,7 @@ sub BackupFindProgModules {
 			close($FILE);
 		}
 		closedir($DIR1);
+		
 		opendir(my $DIR2, $folder . '/RAPID/' . $list_task . '/SYSMOD');
 		foreach my $de (readdir($DIR2)) {
 			next unless ($de =~ /\.sys(x?)/i);
@@ -523,6 +541,7 @@ sub BackupFindProgModules {
 			close($FILE);
 		}
 		closedir($DIR2);
+		
 	}
 	return(@prog_modules);
 }
@@ -614,6 +633,7 @@ sub BackupFindTaskList {
 		push(@list, $1 . ';' . $2) if ($line =~ />>(TASK\d+):\s\(([\w\d_]+)/);
 	}
 	close($FILE);
+	
 	return(@list);
 }
 
@@ -663,6 +683,15 @@ sub BackupFindMostRecent {
 	die('ERROR: Did not find any backups. Place the backupfolder in the same folder as this script and retry.' . "\n") if ($backupfolder_latest eq 'Not found');
 	
 	return($backupfolder_latest);
+}
+
+
+
+sub FormatTime {
+	my($stime) = @_;
+	
+	my(@td) = localtime($stime);
+	return sprintf("%04d-%02d-%02d %02d:%02d:%02d", $td[5] + 1900, $td[4] + 1, $td[3], $td[2], $td[1], $td[0]);
 }
 
 
@@ -1168,15 +1197,6 @@ sub NodeGraphmlEdge {
 END
 
 	return($res);
-}
-
-
-
-sub FormatTime {
-	my($stime) = @_;
-	
-	my(@td) = localtime($stime);
-	return sprintf("%04d-%02d-%02d %02d:%02d:%02d", $td[5] + 1900, $td[4] + 1, $td[3], $td[2], $td[1], $td[0]);
 }
 
 
