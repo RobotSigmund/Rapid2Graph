@@ -232,7 +232,7 @@ sub RemoveDuplicateEdges {
 	# Format is a csv string. Example '23;12' Numbers point to @DECL_ROUTINES indexes.
 	
 	# Print current array size
-	print '  Size:' . $#CONNECTIONS . "\n";
+	print '  Size:' . ($#CONNECTIONS + 1) . "\n";
 	
 	# Loop through array and remove duplicates
 	my $i = 0;
@@ -245,7 +245,7 @@ sub RemoveDuplicateEdges {
 	}
 	
 	# Print new size
-	print '  New size:' . $#CONNECTIONS . "\n";
+	print '  New size:' . ($#CONNECTIONS + 1) . "\n";
 }
 
 
@@ -702,37 +702,39 @@ sub FormatTime {
 
 sub generate_graphml {
 	my($folder) = @_;
+	
+	my(undef, $filename_output) = split(/\//, $folder);
 
-	open(my $GRAPHML2, '>' . $folder . '_singlenode.graphml') or die('Unable to open [' . $folder . '_singlenode.graphml]');
+	open(my $GRAPHML2, '>CodeMap-' . $filename_output . '.graphml') or die('Unable to open [CodeMap-' . $filename_output . '.graphml]');
 	my $time_backup = FormatTime($BACKUP_TIME);
 	my $time_generated = FormatTime(time());
 	print $GRAPHML2 <<END;
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:java="http://www.yworks.com/xml/yfiles-common/1.0/java" xmlns:sys="http://www.yworks.com/xml/yfiles-common/markup/primitives/2.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:y="http://www.yworks.com/xml/graphml" xmlns:yed="http://www.yworks.com/xml/yed/3" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd">
-  <key for="node" id="d5" yfiles.type="nodegraphics"/>
-  <key for="node" id="d6" yfiles.type="nodegraphics"/>
-  <key for="edge" id="d10" yfiles.type="edgegraphics"/>
-  <key for="graph" id="user" attr.name="User" attr.type="string"/>
-  <key for="graph" id="user_machine" attr.name="User machine" attr.type="string"/>
-  <key for="graph" id="generator" attr.name="Generator" attr.type="string"/>
-  <key for="graph" id="generator_rev" attr.name="Generator revision" attr.type="string"/>
-  <key for="graph" id="generated_time" attr.name="Generated time" attr.type="string"/>
-  <key for="graph" id="author" attr.name="Author" attr.type="string"/>
-  <key for="graph" id="author_web" attr.name="Author www" attr.type="string"/>
-  <key for="graph" id="robot_id" attr.name="Robot ID" attr.type="string"/>
-  <key for="graph" id="backup_robotware" attr.name="Backup robotware" attr.type="string"/>
-  <key for="graph" id="backup_time" attr.name="Backup time" attr.type="string"/>
-  <graph edgedefault="directed" id="G">
-    <data key="user">$APP_USER</data>
-    <data key="user_machine">$APP_USER_MACHINE</data>
-    <data key="generator">$APP_NAME</data>
-    <data key="generator_rev">$APP_REV</data>
-    <data key="generated_time">$time_generated</data>
-    <data key="author">$APP_AUTH</data>
-    <data key="author_web" href="$APP_WEB">$APP_WEB</data>
-    <data key="robot_id">$BACKUP_ID</data>
-    <data key="backup_robotware">$BACKUP_RW</data>
-    <data key="backup_time">$time_backup</data>
+        <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:java="http://www.yworks.com/xml/yfiles-common/1.0/java" xmlns:sys="http://www.yworks.com/xml/yfiles-common/markup/primitives/2.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:y="http://www.yworks.com/xml/graphml" xmlns:yed="http://www.yworks.com/xml/yed/3" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd">
+		  <key for="node" id="d5" yfiles.type="nodegraphics"/>
+		  <key for="node" id="d6" yfiles.type="nodegraphics"/>
+		  <key for="edge" id="d10" yfiles.type="edgegraphics"/>
+		  <key for="graph" id="user" attr.name="User" attr.type="string"/>
+		  <key for="graph" id="user_machine" attr.name="User machine" attr.type="string"/>
+		  <key for="graph" id="generator" attr.name="Generator" attr.type="string"/>
+		  <key for="graph" id="generator_rev" attr.name="Generator revision" attr.type="string"/>
+		  <key for="graph" id="generated_time" attr.name="Generated time" attr.type="string"/>
+		  <key for="graph" id="author" attr.name="Author" attr.type="string"/>
+		  <key for="graph" id="author_web" attr.name="Author www" attr.type="string"/>
+		  <key for="graph" id="robot_id" attr.name="Robot ID" attr.type="string"/>
+		  <key for="graph" id="backup_robotware" attr.name="Backup robotware" attr.type="string"/>
+		  <key for="graph" id="backup_time" attr.name="Backup time" attr.type="string"/>
+		  <graph edgedefault="directed" id="G">
+			<data key="user">$APP_USER</data>
+			<data key="user_machine">$APP_USER_MACHINE</data>
+			<data key="generator">$APP_NAME</data>
+			<data key="generator_rev">$APP_REV</data>
+			<data key="generated_time">$time_generated</data>
+			<data key="author">$APP_AUTH</data>
+			<data key="author_web" href="$APP_WEB">$APP_WEB</data>
+			<data key="robot_id">$BACKUP_ID</data>
+			<data key="backup_robotware">$BACKUP_RW</data>
+			<data key="backup_time">$time_backup</data>
 
 END
 
@@ -746,22 +748,22 @@ END
 	foreach my $i (0..$#TASK_LIST) {
 		my($task, $task_name, $task_entry) = split(/;/, $TASK_LIST[$i]);
 		print $GRAPHML2 <<END;
-<!-- GROUP TASK $task, $task_name -->
-<node id="n$id_i" yfiles.foldertype="group">
-  <data key="d5">
-    <y:ProxyAutoBoundsNode>
-    <y:Realizers active="0">
-    <y:GroupNode>
-    <y:Fill hasColor="false" transparent="false"/>
-    <y:BorderStyle color="#000000" type="dashed_dotted" width="2.0"/>
-    <y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#FF9900" fontSize="30" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">$task, $task_name</y:NodeLabel>
-    <y:Shape type="roundrectangle"/>
-    <y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
-    </y:GroupNode>
-    </y:Realizers>
-    </y:ProxyAutoBoundsNode>
-  </data>
-  <graph edgedefault="directed" id="n$id_i:">
+			<!-- GROUP TASK $task, $task_name -->
+			<node id="n$id_i" yfiles.foldertype="group">
+			  <data key="d5">
+				<y:ProxyAutoBoundsNode>
+				<y:Realizers active="0">
+				<y:GroupNode>
+				<y:Fill hasColor="false" transparent="false"/>
+				<y:BorderStyle color="#000000" type="dashed_dotted" width="2.0"/>
+				<y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#FF9900" fontSize="30" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">$task, $task_name</y:NodeLabel>
+				<y:Shape type="roundrectangle"/>
+				<y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
+				</y:GroupNode>
+				</y:Realizers>
+				</y:ProxyAutoBoundsNode>
+			  </data>
+			  <graph edgedefault="directed" id="n$id_i:">
 
 END
 
@@ -784,22 +786,22 @@ END
 
 			$value_module =~ s/[^a-z0-9_\.\/]/_/gi;
 			print $GRAPHML2 <<END;
-<!-- GROUP MODULE $value_module -->
-<node id="n$id_i" yfiles.foldertype="group">
-  <data key="d5">
-    <y:ProxyAutoBoundsNode>
-    <y:Realizers active="0">
-    <y:GroupNode>
-    <y:Fill hasColor="false" transparent="false"/>
-    <y:BorderStyle color="#000000" type="dashed_dotted" width="1.0"/>
-    <y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#AAAAFF" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">$value_module</y:NodeLabel>
-    <y:Shape type="roundrectangle"/>
-    <y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
-    </y:GroupNode>
-    </y:Realizers>
-    </y:ProxyAutoBoundsNode>
-  </data>
-  <graph edgedefault="directed" id="n$id_i:">
+				<!-- GROUP MODULE $value_module -->
+				<node id="n$id_i" yfiles.foldertype="group">
+				  <data key="d5">
+					<y:ProxyAutoBoundsNode>
+					<y:Realizers active="0">
+					<y:GroupNode>
+					<y:Fill hasColor="false" transparent="false"/>
+					<y:BorderStyle color="#000000" type="dashed_dotted" width="1.0"/>
+					<y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#AAAAFF" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">$value_module</y:NodeLabel>
+					<y:Shape type="roundrectangle"/>
+					<y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
+					</y:GroupNode>
+					</y:Realizers>
+					</y:ProxyAutoBoundsNode>
+				  </data>
+				  <graph edgedefault="directed" id="n$id_i:">
 
 END
 
@@ -823,18 +825,18 @@ END
 			}
 
 			print $GRAPHML2 <<END;
-  <!-- /GROUP MODULE $value_module -->
-  </graph>
-</node>
+				  <!-- /GROUP MODULE $value_module -->
+				  </graph>
+				</node>
 
 END
 
 		}
 
 		print $GRAPHML2 <<END;
-  <!-- /GROUP $task, $task_name -->
-  </graph>
-</node>
+			  <!-- /GROUP $task, $task_name -->
+			  </graph>
+			</node>
 
 END
 
@@ -850,139 +852,139 @@ END
 	}
 	
 	print $GRAPHML2 <<END;
-<!-- GROUP LEGEND -->
-<node id="n$id_i" yfiles.foldertype="group">
-  <data key="d5">
-    <y:ProxyAutoBoundsNode>
-    <y:Realizers active="0">
-    <y:GroupNode>
-    <y:Fill hasColor="false" transparent="false"/>
-    <y:BorderStyle color="#000000" type="dashed_dotted" width="2.0"/>
-    <y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#FF9900" fontSize="30" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">LEGEND / TASK GROUP</y:NodeLabel>
-    <y:Shape type="roundrectangle"/>
-    <y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
-    </y:GroupNode>
-    </y:Realizers>
-    </y:ProxyAutoBoundsNode>
-  </data>
-  <graph edgedefault="directed" id="n$id_i:">
+		<!-- GROUP LEGEND -->
+		<node id="n$id_i" yfiles.foldertype="group">
+		  <data key="d5">
+			<y:ProxyAutoBoundsNode>
+			<y:Realizers active="0">
+			<y:GroupNode>
+			<y:Fill hasColor="false" transparent="false"/>
+			<y:BorderStyle color="#000000" type="dashed_dotted" width="2.0"/>
+			<y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#FF9900" fontSize="30" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">LEGEND / TASK GROUP</y:NodeLabel>
+			<y:Shape type="roundrectangle"/>
+			<y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
+			</y:GroupNode>
+			</y:Realizers>
+			</y:ProxyAutoBoundsNode>
+		  </data>
+		  <graph edgedefault="directed" id="n$id_i:">
 
 END
 	$id_i++;
 	print $GRAPHML2 <<END;
-<!-- GROUP LEGEND TASK -->
-<node id="n$id_i" yfiles.foldertype="group">
-  <data key="d5">
-    <y:ProxyAutoBoundsNode>
-    <y:Realizers active="0">
-    <y:GroupNode>
-    <y:Fill hasColor="false" transparent="false"/>
-    <y:BorderStyle color="#000000" type="dashed_dotted" width="1.0"/>
-    <y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#AAAAFF" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">MODULE</y:NodeLabel>
-    <y:Shape type="roundrectangle"/>
-    <y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
-    </y:GroupNode>
-    </y:Realizers>
-    </y:ProxyAutoBoundsNode>
-  </data>
-  <graph edgedefault="directed" id="n$id_i:">
-
-END
-
-	$id_i++;
-	print $GRAPHML2 <<END;
-<node id="n$id_i">
-  <data key="d6">
-	<y:ShapeNode>
-	  <y:Geometry height="30.0" width="250.0"/>
-	  <y:Fill color="#66FFFF" color2="#FFFFFF" transparent="false"/>
-	  <y:BorderStyle color="#000000" type="line" width="1.0"/>
-	  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Task Entry Point</y:NodeLabel>
-	  <y:Shape type="fatarrow"/>
-	</y:ShapeNode>
-  </data>
-</node>
+		<!-- GROUP LEGEND TASK -->
+		<node id="n$id_i" yfiles.foldertype="group">
+		  <data key="d5">
+			<y:ProxyAutoBoundsNode>
+			<y:Realizers active="0">
+			<y:GroupNode>
+			<y:Fill hasColor="false" transparent="false"/>
+			<y:BorderStyle color="#000000" type="dashed_dotted" width="1.0"/>
+			<y:NodeLabel alignment="right" autoSizePolicy="node_width" backgroundColor="#AAAAFF" fontStyle="bold" textColor="#000000" visible="true" modelName="internal" modelPosition="tr">MODULE</y:NodeLabel>
+			<y:Shape type="roundrectangle"/>
+			<y:State closed="false" closedHeight="50.0" closedWidth="50.0" innerGraphDisplayEnabled="false"/>
+			</y:GroupNode>
+			</y:Realizers>
+			</y:ProxyAutoBoundsNode>
+		  </data>
+		  <graph edgedefault="directed" id="n$id_i:">
 
 END
 
 	$id_i++;
 	print $GRAPHML2 <<END;
-<node id="n$id_i">
-  <data key="d6">
-	<y:ShapeNode>
-	  <y:Geometry height="30.0" width="250.0"/>
-	  <y:Fill color="#EEEEFF" color2="#FFFFFF" transparent="false"/>
-	  <y:BorderStyle color="#000000" type="line" width="1.0"/>
-	  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Procedure</y:NodeLabel>
-	  <y:Shape type="rectangle"/>
-	</y:ShapeNode>
-  </data>
-</node>
+		<node id="n$id_i">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  <y:Fill color="#66FFFF" color2="#FFFFFF" transparent="false"/>
+			  <y:BorderStyle color="#000000" type="line" width="1.0"/>
+			  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Task Entry Point</y:NodeLabel>
+			  <y:Shape type="fatarrow"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
+
+END
+
+	$id_i++;
+	print $GRAPHML2 <<END;
+		<node id="n$id_i">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  <y:Fill color="#EEEEFF" color2="#FFFFFF" transparent="false"/>
+			  <y:BorderStyle color="#000000" type="line" width="1.0"/>
+			  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Procedure</y:NodeLabel>
+			  <y:Shape type="rectangle"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
 
 END
 	
 	$id_i++;
 	print $GRAPHML2 <<END;
-<node id="n$id_i">
-  <data key="d6">
-	<y:ShapeNode>
-	  <y:Geometry height="30.0" width="250.0"/>
-	  <y:Fill color="#FFCC99" color2="#FFFFFF" transparent="false"/>
-	  <y:BorderStyle color="#000000" type="line" width="1.0"/>
-	  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Function</y:NodeLabel>
-	  <y:Shape type="rectangle"/>
-	</y:ShapeNode>
-  </data>
-</node>
+		<node id="n$id_i">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  <y:Fill color="#FFCC99" color2="#FFFFFF" transparent="false"/>
+			  <y:BorderStyle color="#000000" type="line" width="1.0"/>
+			  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Function</y:NodeLabel>
+			  <y:Shape type="rectangle"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
 
 END
 
 	$id_i++;
 	print $GRAPHML2 <<END;
-<node id="n$id_i">
-  <data key="d6">
-	<y:ShapeNode>
-	  <y:Geometry height="30.0" width="250.0"/>
-	  <y:Fill color="#FF9999" color2="#FFFFFF" transparent="false"/>
-	  <y:BorderStyle color="#000000" type="line" width="1.0"/>
-	  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Trap</y:NodeLabel>
-	  <y:Shape type="parallelogram"/>
-	</y:ShapeNode>
-  </data>
-</node>
+		<node id="n$id_i">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  <y:Fill color="#FF9999" color2="#FFFFFF" transparent="false"/>
+			  <y:BorderStyle color="#000000" type="line" width="1.0"/>
+			  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Trap</y:NodeLabel>
+			  <y:Shape type="parallelogram"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
 
 END
 			
 	$id_i++;
 	print $GRAPHML2 <<END;
-<node id="n$id_i">
-  <data key="d6">
-	<y:ShapeNode>
-	  <y:Geometry height="30.0" width="250.0"/>
-	  <y:Fill color="#DDFFDD" color2="#FFFFFF" transparent="false"/>
-	  <y:BorderStyle color="#000000" type="line" width="1.0"/>
-	  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Event Routine</y:NodeLabel>
-	  <y:Shape type="rectangle"/>
-	</y:ShapeNode>
-  </data>
-</node>
+		<node id="n$id_i">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  <y:Fill color="#DDFFDD" color2="#FFFFFF" transparent="false"/>
+			  <y:BorderStyle color="#000000" type="line" width="1.0"/>
+			  <y:NodeLabel alignment="center" textColor="#000000" visible="true">Event Routine</y:NodeLabel>
+			  <y:Shape type="rectangle"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
 
 END
 
 	print $GRAPHML2 <<END;
-<!-- /MODULE GROUP -->
-</graph>
-</node>
+		<!-- /MODULE GROUP -->
+		</graph>
+		</node>
 
-<!-- /LEGEND TASK GROUP -->
-</graph>
-</node>
+		<!-- /LEGEND TASK GROUP -->
+		</graph>
+		</node>
 
 END
 
 	print $GRAPHML2 <<END;
-</graph>
-</graphml>
+		</graph>
+		</graphml>
 
 END
 	close($GRAPHML2);
@@ -999,18 +1001,18 @@ sub NodeGraphmlMain {
 	$borderstyle = '<y:BorderStyle color="#00cc00" type="line" width="2.0"/>' if ($VERIFIED_ROUTINES{$verified_text});
 
 	my $res = <<END;
-<!-- NODE $text	-->
-<node id="n$id">
-  <data key="d6">
-	<y:ShapeNode>
-	  <y:Geometry height="30.0" width="250.0"/>
-	  <y:Fill color="#66FFFF" color2="#FFFFFF" transparent="false"/>
-	  $borderstyle
-	  <y:NodeLabel alignment="center" textColor="#000000" visible="true">$text</y:NodeLabel>
-	  <y:Shape type="fatarrow"/>
-	</y:ShapeNode>
-  </data>
-</node>
+		<!-- NODE $text	-->
+		<node id="n$id">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  <y:Fill color="#66FFFF" color2="#FFFFFF" transparent="false"/>
+			  $borderstyle
+			  <y:NodeLabel alignment="center" textColor="#000000" visible="true">$text</y:NodeLabel>
+			  <y:Shape type="fatarrow"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
 	
 END
 
@@ -1056,18 +1058,18 @@ sub NodeGraphmlProc {
 	}
 
 	my $res = <<END;
-<!-- NODE $text	-->
-<node id="n$id">
-  <data key="d6">
-    <y:ShapeNode>
-      <y:Geometry height="30.0" width="250.0"/>
-      $fill
-      $borderstyle
-      $nodelabel
-      <y:Shape type="rectangle"/>
-    </y:ShapeNode>
-  </data>
-</node>
+		<!-- NODE $text	-->
+		<node id="n$id">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  $fill
+			  $borderstyle
+			  $nodelabel
+			  <y:Shape type="rectangle"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
 	
 END
 
@@ -1102,18 +1104,18 @@ sub NodeGraphmlFunc {
 	}
 
 	my $res = <<END;
-<!-- NODE $text -->
-<node id="n$id">
-  <data key="d6">
-    <y:ShapeNode>
-      <y:Geometry height="30.0" width="250.0"/>
-      $fill
-      $borderstyle
-      $nodelabel
-      <y:Shape type="rectangle"/>
-    </y:ShapeNode>
-  </data>
-</node>
+		<!-- NODE $text -->
+		<node id="n$id">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  $fill
+			  $borderstyle
+			  $nodelabel
+			  <y:Shape type="rectangle"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
 	
 END
 
@@ -1148,19 +1150,19 @@ sub NodeGraphmlTrap {
 	}
 
 	my $res = <<END;
-<!-- NODE $text	-->
-<node id="n$id">
-  <data key="d6">
-    <y:ShapeNode>
-      <y:Geometry height="30.0" width="250.0"/>
-      $fill
-      $borderstyle
-      $nodelabel
-      <y:Shape type="parallelogram"/>
-    </y:ShapeNode>
-  </data>
-</node>
-	
+		<!-- NODE $text	-->
+		<node id="n$id">
+		  <data key="d6">
+			<y:ShapeNode>
+			  <y:Geometry height="30.0" width="250.0"/>
+			  $fill
+			  $borderstyle
+			  $nodelabel
+			  <y:Shape type="parallelogram"/>
+			</y:ShapeNode>
+		  </data>
+		</node>
+			
 END
 
 	return($res);
@@ -1183,16 +1185,16 @@ sub NodeGraphmlEdge {
 	my $color = '#' . sprintf("%02X", $rgb_r) . sprintf("%02X", $rgb_g) . sprintf("%02X", $rgb_b);
 
 	my $res = <<END;
-<!-- EDGE e$id -->
-<edge id="e$id" source="n$from" target="n$to">
-  <data key="d10">
-    <y:PolyLineEdge>
-      <y:LineStyle color="$color" type="line" width="1.0"/>
-      <y:Arrows source="none" target="standard"/>
-      <y:BendStyle smoothed="true"/>
-    </y:PolyLineEdge>
-  </data>
-</edge>
+		<!-- EDGE e$id -->
+		<edge id="e$id" source="n$from" target="n$to">
+		  <data key="d10">
+			<y:PolyLineEdge>
+			  <y:LineStyle color="$color" type="line" width="1.0"/>
+			  <y:Arrows source="none" target="standard"/>
+			  <y:BendStyle smoothed="true"/>
+			</y:PolyLineEdge>
+		  </data>
+		</edge>
 	
 END
 
