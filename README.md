@@ -1,4 +1,4 @@
-# Rapid_ExecChart
+# Rapid2Graph
 
 # Abstract
 
