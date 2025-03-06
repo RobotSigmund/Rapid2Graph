@@ -468,9 +468,9 @@ sub BackupFindDeclRoutines {
 	foreach my $i (0..$#prog_modules) {
 		my($list_task, $list_file) = split(/;/, $prog_modules[$i]);
 
+		my $ignored = 0;
 		foreach my $line (@{$FILEDATA{$folder . $list_file}}) {
 
-			my $ignored = 0;
 			# Everything after this point should be ignored, so we add a suffix to differentiate
 			$ignored = 1 if ($line =~ /!\s*Rapid2Graph\s+Ignore/i);
 			
