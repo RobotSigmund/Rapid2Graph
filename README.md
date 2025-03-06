@@ -34,6 +34,8 @@ Open .graphml files in yEd. Arrange chart by selecting Layer->Hierarchical or an
 
 # More info
 
+### Late bind calls
+
 The script cannot interpret late binding procedure calls. You can however define valid calls by inserting a comment after late bindings
 
 Example:
@@ -46,3 +48,13 @@ Example:
 ```
 
 Check logfiles for found procedures (TaskProcs.log) and procedurecalls (TaskProcs.log).
+
+### Exclude parts of the rapid code
+
+Insert the following line anywhere in any program/system module and the remaining parts of that module will not be included into the resulting .graphml file.
+
+```
+! Rapid2Graph Ignore
+```
+
+
