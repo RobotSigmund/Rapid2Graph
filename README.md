@@ -23,7 +23,7 @@ yEd software specific advantages:
 
 Copy the controller backup into the same folder as the script. Run the script.
 
-Open .graphml files in yEd. Arrange chart by selecting Layer->Hierarchical or any other suitable layout style.
+Open .graphml files in yEd. Arrange chart by selecting Layer->Hierarchical or any other suitable layout style. BPMN-Layout with Left-to-right style will generate suitable charts with default settings.
 
 # Prerequisites
 
