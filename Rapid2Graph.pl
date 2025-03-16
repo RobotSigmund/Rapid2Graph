@@ -32,7 +32,7 @@ use Win32;
 
 
 our $APP_NAME = 'Rapid2Graph';
-our $APP_REV = 'rev2025-03-01';
+our $APP_REV = 'rev2025-03-16';
 our $APP_AUTH = 'Sigmund Straumland';
 our $APP_USER = Win32::LoginName() || "Unknown";
 our $APP_USER_MACHINE = Win32::NodeName() || "Unknown";
@@ -674,8 +674,12 @@ sub BackupFindMostRecent {
 
 sub generate_graphml {
 	my($folder) = @_;
+	
+	# Trim filename
+	$folder =~ /^(\.\/)?(.*)/;
+	my $filename = 'CodeMap-' . $2 . '.graphml';
 
-	open(my $GRAPHML2, '>' . $folder . '_singlenode.graphml') or die('Unable to open [' . $folder . '_singlenode.graphml]');
+	open(my $GRAPHML2, '>' . $filename) or die('Unable to open [' . $filename . ']');
 	my $time_backup = FormatTime($BACKUP_TIME);
 	my $time_generated = FormatTime(time());
 	print $GRAPHML2 <<END;

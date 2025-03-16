@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SystemProperties>
+  <SystemName>Rapid2Graph-Rw718</SystemName>
+  <SerialNo>VIRTUAL_CONTROLLER</SerialNo>
+  <UsedMedia>
+    <Media path="C:/Users/valgj/AppData/Local/ABB/RobotWare/RobotOS_16.0.0" name="RobotOS" version="16.0.0+231" versionName="16.0.0"/>
+    <Media path="C:/Users/valgj/AppData/Local/ABB/RobotWare/RobotControl_7.18.0" name="RobotControl" version="7.18.0+665" versionName="7.18.0"/>
+    <Media path="C:/Users/valgj/AppData/Local/ABB/RobotWare/FlexPendant/Apps_1.19.0" name="FlexPendantSoftwareUpdate" version="1.19.0+1646" versionName="1.19.0"/>
+    <Media path="C:/Users/valgj/AppData/Local/ABB/RobotWare/Robots_1.18.0" name="Robots" version="1.18.0+40" versionName="1.18.0"/>
+  </UsedMedia>
+  <ControlModule>
+    <Option descr="RobotControl Base"/>
+    <Option descr="English"/>
+    <Option descr="3120-1 FlexPendant Limited App Package"/>
+    <Option descr="3120-2 FlexPendant Essential App Package"/>
+    <Option descr="3151-1 FlexPendant Program Package"/>
+  </ControlModule>
+  <DriveModule>
+    <Name>Robot1</Name>
+    <Option descr="Motor Commutation"/>
+    <Option descr="Service Info System"/>
+    <Option descr="System without axis computer"/>
+    <Option descr="Main computer M28.04"/>
+    <Option descr="V250XT"/>
+    <Option descr="E8 (High Power)"/>
+    <Option descr="Axis Calibration"/>
+    <Option descr="Pendulum Calibration"/>
+    <Option descr="V250XT Type B"/>
+    <Option descr="ADU in position 1"/>
+    <Option descr="ADU in position 2"/>
+    <Option descr="ADU in position 3"/>
+  </DriveModule>
+  <AdditionalOption>
+    <Name>FlexPendantSoftwareUpdate</Name>
+  </AdditionalOption>
+  <AdditionalOption>
+    <Name>Robots</Name>
+    <Option descr="Robots Base"/>
+    <Option descr="IRB 6700-300/2.70"/>
+  </AdditionalOption>
+</SystemProperties>

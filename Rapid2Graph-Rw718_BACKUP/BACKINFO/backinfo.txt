@@ -1,0 +1,59 @@
+#
+# Generated backup file, do not edit.
+#
+# Originally at: C:/Users/valgj/Documents/RobotStudio/Virtual Controllers/Rapid2Graph-Rw718/TEMP/backup.570845
+# 2025-03-16  14:37:59
+#
+>>SYSTEM_ID:
+VIRTUAL_CONTROLLER
+
+>>PRODUCTS_ID:
+RobotOS Version: 16.0.0
+RobotControl Version: 7.18.0
+FlexPendantSoftwareUpdate Version: 1.19.0
+Robots Version: 1.18.0
+
+  RobotControl Base
+  English
+  3120-1 FlexPendant Limited App Package
+  3120-2 FlexPendant Essential App Package
+  3151-1 FlexPendant Program Package
+  Motor Commutation
+  Service Info System
+  System without axis computer
+  Main computer M28.04
+  V250XT
+  E8 (High Power)
+  Axis Calibration
+  Pendulum Calibration
+  V250XT Type B
+  ADU in position 1
+  ADU in position 2
+  ADU in position 3
+  Robots Base
+  IRB 6700-300/2.70
+
+>>HOME:
+All public files and directories
+
+>>SYSPAR:
+SYS.cfg
+SIO.cfg
+PROC.cfg
+MMC.cfg
+MOC.cfg
+EIO.cfg
+
+
+>>TASK1: (T_ROB1,,)
+SYSMOD/FunctionsGlobalMod.sysx @ 
+PROGMOD/Functions.modx @ 
+SYSMOD/DataGlobalMod.sysx @ 
+PROGMOD/CalibrationMod.modx @ 
+PROGMOD/MainModule.modx @ 
+PROGMOD/Product3Mod.modx @ 
+PROGMOD/Product2Mod.modx @ 
+PROGMOD/Product1Mod.modx @ 
+
+
+>>EOF:

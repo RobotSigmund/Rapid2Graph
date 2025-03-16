@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SafetyConfiguration version="3.02.01" ConfigurationScope="FullConfiguration" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="urn:abb-robotics-safety-controller-configuration"
+    xsi:schemaLocation="urn:abb-robotics-safety-controller-configuration sc_cfg.3.02.01.xsd"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema-instance">
+    <ConfigurationSeal checksum=
+"98BF08DA2511B21C7CCE24971E480F732ED8D399E804A2CF232798558F69AB04" checksumShort="5062184a" createdBy="ABB" creationDate="2025-02-26T14:20:27.8815399+00:00" RW_Version="7.18.0" swVersion="3.2.3"
+ hardwareIdentifier="DSQC1095" >
+        <SiosCfg version="1.4">
+            <!--
+            Declare Signals.
+
+            Default values are visible="true" and readonly="false".
+            It is OK to declare the same signal several times, as long as the
+            type and default values are the same.
+            The type and default is optional on subsequent declarations.
+            -->
+            <Signal name="SafetyEnable"                     type="BOOL" default="1" visible="true"  readonly="false" description="Must be true to enable safety functions. If false then DriveEnable will also be set to false." />
+
+            <Signal name="AutomaticMode"                    type="BOOL" default="0" visible="true"  readonly="false" description="True if Automatic mode is selected." />
+            <Signal name="ManualMode"                       type="BOOL" default="0" visible="true"  readonly="false" description="True if Manual mode is selected." />
+            <Signal name="ManualFullSpeedMode"              type="BOOL" default="0" visible="true"  readonly="false" description="True if Manual Full Speed mode is selected." />
+
+            <Signal name="DriveEnable"                      type="BOOL" default="0" visible="true"  readonly="false" description="True if the safety controller enables power to the actuators." />
+            <Signal name="DriveEnableFeedback"              type="BOOL" default="0" visible="true"  readonly="false" description="True if the Run Chain is closed." />
+
+            <Signal name="LocalEmergencyStopStatus"         type="BOOL" default="0" visible="true"  readonly="false" description="False if the emergency stop, for example on the FlexPendant, is pressed." />
+
+            <Signal name="ExternalEmergencyStopStatus"      type="BOOL" default="0" visible="true"  readonly="false" description="Optional safe input on GPIO_IN1. " />
+            <Signal name="EmergencyStopActivated"           type="BOOL" default="0" visible="true"  readonly="false" description="Onput on GPIO_OUT2. " />
+            <Signal name="ProtectiveStop"                   type="BOOL" default="0" visible="true"  readonly="false" description="Protective stop in automatic mode on GPIO_IN2." />
+            <Signal name="EnableSwitch"                     type="BOOL" default="0" visible="true"  readonly="false" description="Enable switch status on GPIO_IN4." />
+
+            <Signal name="DeviceEnable1"                    type="BOOL" default="0" visible="false"  readonly="false" description="Set by the MC." />
+            <Signal name="DriveEnableAllowed"               type="BOOL" default="0" visible="false"  readonly="false" description="Set by the SC." />            
+            <Signal name="ProtectiveStop2"                  type="BOOL" default="0" visible="true"   readonly="false" description="Protective stop in automatic mode on GPIO_IN5." />
+            <!--
+            Declare FuncIOMappings.
+                The mapped signals must exist at this point - i.e., they
+                must already have been specified previously in the configuration file.
+                Default is mandatory="false". If the user does not assign a signal then
+                the mapping shall be removed.
+
+                When mandatory="true" then a signal must be specified and the entry cannot be deleted.
+
+                If the signal is marked as visible="false" then do not show the FuncIOMapping either.
+            -->
+            <FuncIOMappings>
+              <SafetyEnable                   signalName="SafetyEnable"                   mandatory="true" description="Must be true to enable safety functions. If false then DriveEnable will also be set to false." />
+
+              <AutomaticMode                  signalName="AutomaticMode"                  mandatory="true" description="True if Automatic mode is selected." />
+              <ManualMode                     signalName="ManualMode"                     mandatory="true" description="True if Manual mode is selected." />
+              <ManualFullSpeedMode            signalName="ManualFullSpeedMode"            mandatory="true" description="True if Manual Full Speed mode is selected." />
+
+              <DriveEnable                    signalName="DriveEnable"                    mandatory="true" description="True if the safety controller enables power to the actuators" />
+              <DriveEnableFeedback            signalName="DriveEnableFeedback"            mandatory="true" description="True if the Run Chain is closed." />
+
+              <LocalEmergencyStopStatus       signalName="LocalEmergencyStopStatus"       mandatory="true" description="False if the emergency stop, for example on the FlexPendant, is pressed." />
+            </FuncIOMappings>
+            <!--
+            Declare optional FunctionIOMappings.
+            -->
+            <FuncIOMappings>
+              <Stop0Status                 mandatory="false" description="False if Stop 0 is active." />
+              <Stop1Status                 mandatory="false" description="False if Stop 1 is active." />
+              <SafetyControllerOperational mandatory="false" description="True if the Safety Controller is running without errors." />
+              <ServiceModeActive           mandatory="false" description="True if Service Mode is activated." />
+              <CommissioningModeActive     mandatory="false" description="True if Commissioning Mode is activated." />
+              <ConfigurationLocked         mandatory="false" description="True if the safety configuration is locked."/>
+
+              <ExtComShutdownReq           mandatory="false" description="True if controller is one second from shutting down." />
+              <ExtComShutdownAck           mandatory="false" description="True if PLC is ok with shutdown before one second has passed."/>
+            </FuncIOMappings>
+
+            <FuncIOMappings>
+              <ExternalEmergencyStopStatus                  signalName="ExternalEmergencyStopStatus" mandatory="true" />
+              <EmergencyStopActivated                       signalName="EmergencyStopActivated"      mandatory="true" />
+              <ProtectiveStop                               signalName="ProtectiveStop"              mandatory="true" />
+              <EnableSwitch                                 signalName="EnableSwitch"                mandatory="true" />
+              <DeviceEnable1                                signalName="DeviceEnable1"               mandatory="true" />
+              <DriveEnableAllowed                           signalName="DriveEnableAllowed"          mandatory="true" />
+              <ProtectiveStop2                              signalName="ProtectiveStop2"             mandatory="true" />
+            </FuncIOMappings>
+<!-- Feedback Configuration -->
+<Net name="Feedback" visible="true" readonly="false" description="Network for sending signals to the MC." >
+
+  <!-- This is the user-configurable feedback interface -->
+  <Device name="SC_Feedback_Dev" inSizeBits="0" outSizeBits="2048" address="" visible="true" readonly="false" description="Device for sending signals to the MC. It is NOT possible to receive signals from the MC." >
+    <Signal name="AutomaticMode" type="BOOL" default="0" offset="0" width="1" direction="output" />
+    <Signal name="ProtectiveStop" type="BOOL" default="0" offset="1" width="1" direction="output" />
+    <Signal name="DriveEnable" type="BOOL" default="0" offset="2" width="1" direction="output" />
+    <Signal name="DriveEnableFeedback" type="BOOL" default="0" offset="3" width="1" direction="output" />
+    <Signal name="EmergencyStopActivated" type="BOOL" default="0" offset="4" width="1" direction="output" />
+    <Signal name="EnableSwitch" type="BOOL" default="0" offset="5" width="1" direction="output" />
+    <Signal name="ExternalEmergencyStopStatus" type="BOOL" default="0" offset="6" width="1" direction="output" />
+    <Signal name="LocalEmergencyStopStatus" type="BOOL" default="0" offset="7" width="1" direction="output" />
+    <Signal name="ManualFullSpeedMode" type="BOOL" default="0" offset="8" width="1" direction="output" />
+    <Signal name="ManualMode" type="BOOL" default="0" offset="9" width="1" direction="output" />
+	<Signal name="ProtectiveStop2" type="BOOL" default="0" offset="10" width="1" direction="output" />
+  </Device>
+
+  <!--
+  This is an internal device used for Modular Safety.
+  It is not visible to a user for configuration,
+  allthough the user _can_ see the signals.
+   -->
+  <Device name="ScLocIO" inSizeBits="0" outSizeBits="128" address="" visible="false" readonly="true" description="Internal signals for Modular Safety." >
+    <!-- First add the safe local I/O signals -->
+    <FuncIO name="ExternalEmergencyStopStatus"  offset="0" width="1" direction="output" visible="false" readonly="true" />
+    <FuncIO name="ProtectiveStop2"              offset="1" width="1" direction="output" visible="false" readonly="true" />
+    <FuncIO name="EnableSwitch"                 offset="2" width="1" direction="output" visible="false" readonly="true" />
+    <FuncIO name="DeviceEnable1"                offset="3" width="1" direction="output" visible="false" readonly="true" />
+    <FuncIO name="DriveEnableAllowed"           offset="4" width="1" direction="output" visible="false" readonly="true" />
+    <FuncIO name="LocalEmergencyStopStatus"     offset="5" width="1" direction="output" visible="false" readonly="true" />
+    <FuncIO name="DriveEnableFeedback"          offset="6" width="1" direction="output" visible="false" readonly="true" />
+    <FuncIO name="DriveEnable"                  offset="7" width="1" direction="output" visible="false" readonly="true" />
+    <FuncIO name="EmergencyStopActivated"       offset="8" width="1" direction="output" visible="false" readonly="true" />
+	  <FuncIO name="ProtectiveStop"               offset="9" width="1" direction="output" visible="false" readonly="true" />
+  </Device>
+</Net>
+            <!--
+            Declare any signal that is used exclusively by the Configurable Logic (CL).
+            -->
+        </SiosCfg>
+        <ClCfg version="1.2">
+            <Operators>
+            </Operators>
+            <PreLogic>
+                <!--
+                Any signal connected to an Actuator shall be equivalent
+                to a mapping to an "Output" area of a SIOS device.
+
+                Any signal connected to an Resultant shall be equivalent
+                to a mapping to an "Input" area of a SIOS device.
+                -->
+            </PreLogic>
+            <PostLogic>
+                <!--
+                Any signal connected to an Actuator shall be equivalent
+                to a mapping to an "Output" area of a SIOS device.
+
+                Any signal connected to an Resultant shall be equivalent
+                to a mapping to an "Input" area of a SIOS device.
+                -->
+            </PostLogic>
+        </ClCfg>
+        <SystemCfg version="1.0">
+            <!--
+            This part is mainly a help for the configurator.
+            It specifies the direction of mapped signals which are
+            not present anywhere else in the configuration.
+            In particular it is necessary to specify signals with
+            direction "input" as they cannot be mapped to the input
+            area of a device or to an output of the safety app or
+            to a CL Resultant.
+
+            The FuncIOMappings must be declared previously.
+            -->
+
+            <FuncIO name="AutomaticMode"                    direction="input" />
+            <FuncIO name="ManualMode"                       direction="input" />
+            <FuncIO name="ManualFullSpeedMode"              direction="input" />
+
+            <!--
+            The system does not really use these signals in Soft Opmode,
+            but they are defined and RobotStudio needs to know they are
+            to remain. Set them as being written by the system so nobody
+            else can modify them.
+            -->
+            <FuncIO name="ManualIn"                         direction="input"/>
+            <FuncIO name="AutoIn"                           direction="input"/>
+            <FuncIO name="ManualFSIn"                       direction="input"/>
+<FuncIO name="ConfigurationLocked"              direction="input" />
+<FuncIO name="DriveEnable"                      direction="input" />
+<FuncIO name="SafetyControllerOperational"      direction="input" />
+<FuncIO name="CommissioningModeActive"          direction="input" />
+<FuncIO name="ServiceModeActive"                direction="input" />
+<FuncIO name="Stop0Status"                      direction="input" />
+<FuncIO name="Stop1Status"                      direction="input" />
+<FuncIO name="ExtComShutdownReq"                direction="input" />
+<FuncIO name="ExtComShutdownAck"                direction="output" />
+        </SystemCfg>
+        <SafetyCfg version="1.0">      <StopFunction id="69447BE5" emStop="false" mode="General" modeReadOnly="true" stopType="Category1Stop" name="G_GeneralStop">
+        <PhysicalInput signalName="ProtectiveStop" />
+      </StopFunction>
+      <StopFunction id="4DF6024A" emStop="true" mode="General" modeReadOnly="true" stopType="Category0Stop" name="ES_ExternalEmergencyStop">
+        <PhysicalInput signalName="ExternalEmergencyStopStatus" />
+      </StopFunction>
+      <StopFunction id="3E5A055A" emStop="true" mode="General" modeReadOnly="true" stopType="Category0Stop" name="TPU_EmergencyStop">
+        <PhysicalInput signalName="LocalEmergencyStopStatus" />
+      </StopFunction>
+      <StopFunction id="CBFAE9E6" emStop="false" mode="Auto" modeReadOnly="true" stopType="Category1Stop" name="A_AutoStop">
+        <PhysicalInput signalName="ProtectiveStop2" />
+      </StopFunction>      <DriveModuleConfiguration  driveModuleId="1" />        </SafetyCfg>
+    </ConfigurationSeal>
+</SafetyConfiguration>

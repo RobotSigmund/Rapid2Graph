@@ -1,0 +1,17 @@
+MODULE FunctionsGlobalMod(SYSMODULE)
+
+
+
+    PROC GripOpen()
+        !
+    ENDPROC
+
+
+
+    PROC GripClose()
+        !
+    ENDPROC
+
+
+
+ENDMODULE

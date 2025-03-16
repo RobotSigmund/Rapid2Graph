@@ -1,0 +1,11 @@
+MODULE DataGlobalMod(SYSMODULE)
+    
+    
+    
+    TASK PERS tooldata tGrip:=[TRUE,[[0,0,1],[1,0,0,0]],[1,[0,0,0],[1,0,0,0],0,0,0]];    
+    TASK PERS wobjdata wobjPickArea:=[FALSE,TRUE,"",[[0,0,0],[1,0,0,0]],[[0,0,0],[1,0,0,0]]];
+    TASK PERS wobjdata wobjPlaceArea:=[FALSE,TRUE,"",[[0,0,0],[1,0,0,0]],[[0,0,0],[1,0,0,0]]];
+    
+    
+    
+ENDMODULE

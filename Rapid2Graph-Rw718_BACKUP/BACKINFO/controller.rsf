@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ProductSettings version="2.0">
+  <Products>
+    <Product name="RobotOS" version="16.0.0+231" id="abb.robotics.robotos" distName="RobotWare" distVersion="7.18.0">
+      <Features>
+        <Feature id="abb.robotics.robotos" displayName="Robot Controller Operating System" robot="1" />
+      </Features>
+    </Product>
+    <Product name="RobotControl" version="7.18.0+665" id="abb.robotics.robotcontrol" distName="RobotWare" distVersion="7.18.0">
+      <Features>
+        <Feature id="abb.robotics.robotcontrol.base" displayName="RobotControl Base" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.languages.english" displayName="English" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.options.flexpendant.limited" displayName="3120-1 FlexPendant Limited App Package" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.options.flexpendant.essential" displayName="3120-2 FlexPendant Essential App Package" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.options.flexpendant.program" displayName="3151-1 FlexPendant Program Package" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.options.motorcommutation" displayName="Motor Commutation" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.options.sis" displayName="Service Info System" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.controllerhw.axiscomputer.none" displayName="System without axis computer" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.controllerhw.m28.04" displayName="Main computer M28.04" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.controllerhw.variant.v250xt" displayName="V250XT" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.controllerhw.drivesystem.e8" displayName="E8 (High Power)" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.options.calaxis" displayName="Axis Calibration" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.options.calpend" displayName="Pendulum Calibration" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.controllerhw.varianttype.v250xt.typeb" displayName="V250XT Type B" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.drivesystems.powerunits.adu1" displayName="ADU in position 1" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.drivesystems.powerunits.adu2" displayName="ADU in position 2" robot="1" />
+        <Feature id="abb.robotics.robotcontrol.drivesystems.powerunits.adu3" displayName="ADU in position 3" robot="1" />
+      </Features>
+    </Product>
+    <Product name="FlexPendantSoftwareUpdate" version="1.19.0+1646" id="abb.robotics.flexpendantapps" distName="RobotWare" distVersion="7.18.0">
+      <Features />
+    </Product>
+    <Product name="Robots" version="1.18.0+40" id="abb.robotics.robots" distName="RobotWare" distVersion="7.18.0">
+      <Features>
+        <Feature id="abb.robotics.robots.base" displayName="Robots Base" robot="1" />
+        <Feature id="abb.robotics.robots.robots.irb6700.300-2_70" displayName="IRB 6700-300/2.70" robot="1" />
+      </Features>
+    </Product>
+  </Products>
+</ProductSettings>
