@@ -1,60 +1,74 @@
+
 # Rapid2Graph
 
-# Abstract
+## Overview
 
-Read ABB Robot backup. Generate an execution chart parsed into yEd format .graphml . Procedures and functions are grouped into module-groups. Module-groups are grouped into Task-groups. PROC/FUNC/TRAP methods are colour coded.
+Rapid2Graph is a tool for parsing ABB Robot backup files and generating execution charts in the **yEd** ``.graphml`` format. It visualizes the relationships between procedures, functions, and traps within ABB RAPID code, grouping them into Module Groups and Task Groups for clarity. Methods (``PROC``, ``FUNC``, ``TRAP``) are color-coded for easier analysis.
 
-Advantages:
+### Key Benefits
 
-* Educational. Sharing knowledge with new engineers.
-* Testing. Visually highlighting for all parts of the program which calls any part other part.
-* Cleanup. Minimalizes the codebase by highlighting unused code.
+* **Educational** – Helps new engineers understand program structure.
 
-Example output:  
+* **Testing** – Provides a visual representation of procedure calls within the program.
+
+* **Code Cleanup** – Identifies and highlights unused code, aiding in codebase optimization.
+
+### Example Output
+
 ![2025-01-24-2](https://github.com/user-attachments/assets/bcfcdf64-6b5c-4581-9c90-f8c5c4f124eb)
 
-yEd software specific advantages:
+## yEd Software Benefits
 
-* Automatic layout
-* Navigation by main graph or Task/Module/Method list.
+* Automatic layout generation
 
+* Navigation via the main graph or structured lists (Task, Module, Method)
 
-# Usage
+## Usage
 
-Copy the controller backup into the same folder as the script. Run the script.
+1. Copy the controller backup into the same directory as the script.
 
-Open .graphml files in yEd. Arrange chart by selecting Layer->Hierarchical or any other suitable layout style.
+2. Run the script.
 
-# Prerequisites
+3. Open the generated ``.graphml`` files in **yEd**.
 
-[strawberryperl.com](https://strawberryperl.com/)
+4. Arrange the chart using **Layer → Hierarchical** or another suitable layout.
 
-[www.yworks.com/products/yed](https://www.yworks.com/products/yed)
+   * For fast and great result, use **BPMN-Layout** with a Left-to-Right style.
 
+## Prerequisites
 
-# More info
+* **Perl**: [strawberryperl.com](https://strawberryperl.com/)
 
-### Late bind calls
+* **yEd Graph Editor**: [www.yworks.com/products/yed](https://www.yworks.com/products/yed)
 
-The script cannot interpret late binding procedure calls. You can however define valid calls by inserting a comment after late bindings
+## Additional Information
+
+### Late-Bound Calls
+
+The script does not automatically resolve **late-bound** procedure calls. However, you can define valid calls manually by adding a comment after the late binding statement.
 
 Example:
 ```
 ! Late binding
 %"Procedure"+NumToStr(giPlcCommand)%;
 
-! Comment for this script to interpret:
-! Rapid2Graph [Procedure1000,Procedure2000,Procedure3000,Procedure4000]
+! Comment for script interpretation:
+! Rapid2Graph [Procedure1000, Procedure2000, Procedure3000, Procedure4000]
 ```
 
-Check logfiles for found procedures (TaskProcs.log) and procedurecalls (TaskProcs.log).
+Refer to the log files for details on detected procedures and calls:
 
-### Exclude parts of the rapid code
+* **TaskProcs.log** – Found procedures
 
-Insert the following line anywhere in any program/system module and the remaining parts of that module will not be included into the resulting .graphml file.
+* **TaskCalls.log** – Procedure call references
+
+### Excluding Code Sections
+
+To exclude specific sections of RAPID code from the ``.graphml`` output, insert the following comment anywhere in a program or system module. Any code **after** this line in the same module will be ignored.
 
 ```
 ! Rapid2Graph Ignore
 ```
 
+For any issues or feature requests, feel free to contribute or open an issue in the repository.
 
