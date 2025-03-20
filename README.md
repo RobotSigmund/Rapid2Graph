@@ -31,7 +31,7 @@ Rapid2Graph is a tool for parsing ABB Robot backup files and generating executio
 
 3. Open the generated ``.graphml`` files in **yEd**.
 
-4. Arrange the chart using **Layer → Hierarchical** or another suitable layout.
+4. Arrange the chart using **Layout → Hierarchical** or another suitable layout.
 
    * For fast and great result, use **BPMN-Layout** with a Left-to-Right style.
 
